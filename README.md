@@ -1,98 +1,57 @@
-## Download
+# WineBuilder
 
-The builds can be downloaded either from [**the releases page**](https://github.com/Kron4ek/Wine-Builds/releases) or from the **[MEGA](https://mega.nz/folder/ZZUV1K7J#kIenmTQoi0if-SAcMSuAHA)** cloud.
+Fork of [Wine-Builds](https://github.com/Kron4ek/Wine-Builds) aimed at making **building Wine binaries** (eventually using custom patches) easier than ever.
 
-Some builds (stable and wayland versions) are available only on the cloud.
-
-Due to the cloud space limitation, i delete very old builds every few years.
-
----
-
-## How to use
-
-Extract to any directory and run applications using the path to the Wine binary. For example:
-
-    /home/username/wine-7.0-amd64/bin/wine application.exe
-
----
-
-## Requirements
-
-All regular Wine dependencies are required for these builds to work properly, including their 32-bit versions if you plan to run 32-bit applications.
-
-The easiest way to install (almost) all required libraries is to install Wine from your distribution's package repository. I highly recommend to do this, otherwise you will have to manually figure out what libraries are needed, which may be not an easy task.
-
-More precisely, not all the Wine dependencies are strictly required, some of them are optional and needed only for some Windows applications or only for some functions. Still, it's better to keep them all (or at least most of them) installed.
-
-Also, do note that **glibc (libc6)** **2.27** or newer is required.
-
-If you want to use Wine, but don't want to install any of its dependencies, take a look at my [**Conty project**](https://github.com/Kron4ek/Conty). Conty is a container that includes Wine itself and all of its dependencies (including 32-bit ones), you can use it to run any games and programs.
-
----
-
-### What to do if Wine hangs during prefix creation/updating
-
-There is [a bug in gstreamer](https://bugs.winehq.org/show_bug.cgi?id=51086), which causes Wine to hang during prefix creation/updating, and even if you wait long enough for Wine to finish, your prefix will still be broken.
-
-There are two ways to workaround this issue:
-
-* You can remove the **gst-editing-services** package from your system. The package may have a different name on some Linux distros (for example, on Debian-based distros the package is called libges-1.0-0).
-* You can disable **winegstreamer** before creating/updating your prefix. For example, you can do that with the `WINEDLLOVERRIDES` environment variable:
-
-        export WINEDLLOVERRIDES="winegstreamer="
-        winecfg
-
-The second way, although works, may break video or audio playblack in some games, so it is better to use the first way if possible.
-
----
+You can find binaries built from this repo at [osu-winello](https://github.com/NelloKudo/osu-winello) 8)
 
 ## Builds description
 
-### Compilation parameters
+The binaries built from this script use the same configuration as the [original repo](https://github.com/Kron4ek/Wine-Builds), therefore creating two **Ubuntu bootstraps** and building Wine using those. That means providing support for a wide range of distros, as long as **GLIBC>=2.27**.
 
-Build flags (amd64): `-march=x86-64 -msse3 -mfpmath=sse -O2 -ftree-vectorize`
+**Custom patches** can be applied by simply copying those into the `custompatches` folder of the repo, the script will handle the rest itself.
 
-Build flags (x86): `-march=i686 -msse2 -mfpmath=sse -O2 -ftree-vectorize`
+`ccache` is also enabled by default.
 
-Configure options: `--without-ldap --without-oss --disable-winemenubuilder --disable-win16 --disable-tests`
+## Requirements
 
----
+Use your package manager to install the following dependencies: `git`, `autoconf`, `bubblewrap`, `perl`, `debootstrap`, `wget`, `ccache`.
 
-### Architectures
+**You can use the following:**
 
-* **amd64** - for 64-bit systems, it can run both 32-bit and 64-bit applications.
-* **x86** - for 32-bit systems, it can run only 32-bit applications.
+**Ubuntu/Debian:** `sudo apt install -y git autoconf bubblewrap perl debootstrap wget ccache`
 
----
+**Arch Linux:** `sudo pacman -Sy --needed  --noconfirm git autoconf bubblewrap perl debootstrap wget ccache`
 
-### Available builds
+**Fedora:** `sudo dnf install -y git autoconf bubblewrap perl debootstrap wget ccache`
 
-* **Vanilla** is a Wine build compiled from the official WineHQ sources.
+## Building Wine
 
-* **Staging** is a Wine build with [the Staging patchset](https://github.com/wine-staging/wine-staging) applied. It contains many useful patches that are not present in vanilla.
+First of all, clone the repository and enter it with:
 
-* **Staging-TkG** is a Wine build with [the Staging patchset](https://github.com/wine-staging/wine-staging) applied and with many additional useful patches. A complete list of patches is in wine-tkg-config.txt inside the build directory. Compiled from [this source code](https://github.com/Kron4ek/wine-tkg), which is generated using [the wine-tkg build system](https://github.com/Frogging-Family/wine-tkg-git).
+```
+git clone https://github.com/NelloKudo/WineBuilder.git
+cd WineBuilder
+```
 
-* **Proton** is a Wine build modified by Valve and other contributors. It contains many useful patches (primarily for a better gaming experience), some of them are unique and not present in other builds. The differences from the official Steam's Proton are the lack of the Proton's python script and the lack of some builtin dlls (like DXVK and vkd3d-proton), the build environment is also different. However, you can still install DXVK and vkd3d-proton manually to your prefix, like you do with regular Wine builds.
+Once in the folder, run the following to create the containers:
 
-* **Wayland** is a Wine build with the patches from the [wine-wayland project](https://github.com/varmd/wine-wayland). Wine-Wayland works only on Wayland (it doesn't work on Xorg at all) and supports only Vulkan, OpenGL is not supported. Thus you can only run Vulkan games with it (by using DXVK and vkd3d as well). Before using, read all the caveats and notes on [the wine-wayland project page](https://github.com/varmd/wine-wayland).
----
+This will probably take a while, so relax while you're at it and *watch some Mushoku Tensei* e.e
 
-## Compilation / Build environment
+```
+./create_ubuntu_bootstraps.sh
+```
+When it's done, you'll be ready to compile after customizing `build_wine.sh` with a simple command:
 
-I use `create_ubuntu_bootstraps.sh` and `build_wine.sh` to compile my Wine builds, you can use these scripts to compile your own Wine builds. The first script creates two Ubuntu bootstraps (32-bit and 64-bit) and the second script compiles Wine builds inside the created bootstraps by using `bubblewrap`.
+```
+./build_wine.sh
+```
+You'll find the binaries in the same folder :)
 
-These scripts are a pretty convenient way to compile your own Wine builds if you don't trust my binaries or if you want to apply different patches.
+## osu! builds support
 
----
+Since I use this repo to build Wine binaries for  [osu-winello](https://github.com/NelloKudo/osu-winello), I added the variable `WINE_OSU` in `build_wine.sh` to specify whether to use the custom **winepulse.tar** file provided, necessary to apply **gonX's patch** from [ThePooN's Discord](https://discord.gg/dTBPae8Mqf).
 
-### Links to the sources
+If you don't need it, setting it to `false` will be enough :3
 
-* https://dl.winehq.org/wine/source
-* https://github.com/wine-staging/wine-staging
-* https://github.com/Frogging-Family/wine-tkg-git
-* https://github.com/Kron4ek/wine-tkg
-* https://github.com/ValveSoftware/wine
-* https://github.com/varmd/wine-wayland
-* https://github.com/Kron4ek/wine-wayland
-* https://gitlab.collabora.com/alf/wine/-/tree/wayland
+You can read more into the `build_wine.sh` file.
+
