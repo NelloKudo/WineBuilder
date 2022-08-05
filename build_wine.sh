@@ -32,6 +32,10 @@ export WINE_VERSION="latest"
 # Available branches: vanilla, staging, staging-tkg, proton, wayland
 export WINE_BRANCH="staging"
 
+# You can set this to true if you want to use this script for osu! patches from gonX 
+# (this won't work for Wine builds higher than 7.11, use other patchsets for those)
+export WINE_OSU="false"
+
 # Available proton branches: proton_3.7, proton_3.16, proton_4.2, proton_4.11
 # proton_5.0, proton_5.13, experimental_5.13, proton_6.3, experimental_6.3
 # proton_7.0, experimental_7.0
@@ -71,7 +75,7 @@ export DO_NOT_COMPILE="false"
 # By default it has a 5 GB limit for its cache size.
 #
 # Make sure that ccache is installed before enabling this.
-export USE_CCACHE="false"
+export USE_CCACHE="true"
 
 export WINE_BUILD_OPTIONS="--without-ldap --without-oss --disable-winemenubuilder --disable-win16 --disable-tests"
 
@@ -152,6 +156,7 @@ else
 	WINE_URL_VERSION=$(echo "$WINE_VERSION" | cut -c1).x
 fi
 
+curdir=$(pwd)
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}" || exit 1
@@ -249,10 +254,41 @@ if [ ! -d wine ]; then
 	exit 1
 fi
 
+#Changing winepulse.drv content for osu! if enabled
+if [ "${WINE_OSU}" = "true" ] ; then
+
+	echo "Applying osu! winepulse changes.."
+
+	if  [ -s "$curdir/winepulse-513.tar" ] ; then
+		mkdir -p $curdir/winepulse
+		tar -xf "$curdir/winepulse-513.tar" -C "$curdir/winepulse"
+	else
+		wget -O "$curdir/winepulse-513.tar" "https://www.dropbox.com/s/o8b0p9q0tmwwjox/winepulse-513.tar"
+		mkdir -p $curdir/winepulse
+		tar -xf "$curdir/winepulse-513.tar" -C "$curdir/winepulse"
+	fi
+	
+	rm -f "${BUILD_DIR}/wine/dlls/winepulse.drv/Makefile.in"
+	rm -f "${BUILD_DIR}/wine/dlls/winepulse.drv/mmdevdrv.c"
+	rm -f "${BUILD_DIR}/wine/dlls/winepulse.drv/winepulse.drv.spec"
+	cp $curdir/winepulse/* ${BUILD_DIR}/wine/dlls/winepulse.drv
+	rm -rf $curdir/winepulse
+fi
+
+#Applying custom patches
+patches_dir=$curdir/custompatches
 cd wine
+
+for i in "$patches_dir"/*patch; do
+    [ ! -f "$i" ] && continue
+    echo "Applying custom patch '$i'" || (echo "Applying patch '$i' failed" && exit 1)
+    patch -Np1 -i "$i"
+    done
+
 dlls/winevulkan/make_vulkan
 tools/make_requests
-autoreconf -f
+autoreconf -fiv
+
 cd "${BUILD_DIR}"
 
 if [ "${DO_NOT_COMPILE}" = "true" ]; then
