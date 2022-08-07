@@ -38,7 +38,7 @@ Once in the folder, run the following to create the containers:
 This will probably take a while, so relax while you're at it and *watch some Mushoku Tensei* e.e
 
 ```
-./create_ubuntu_bootstraps.sh
+sudo ./create_ubuntu_bootstraps.sh
 ```
 When it's done, you'll be ready to compile after customizing `build_wine.sh` with a simple command:
 
