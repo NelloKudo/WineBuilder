@@ -32,8 +32,7 @@ export WINE_VERSION="latest"
 # Available branches: vanilla, staging, staging-tkg, proton, wayland
 export WINE_BRANCH="staging"
 
-# You can set this to true if you want to use this script for osu! patches from gonX 
-# (this won't work for Wine builds higher than 7.11, use other patchsets for those)
+# You can set this to true if you want to use this script for osu! patches 
 export WINE_OSU="false"
 
 # Available proton branches: proton_3.7, proton_3.16, proton_4.2, proton_4.11
