@@ -1,0 +1,26 @@
+--- a/dlls/winex11.drv/xrandr.c
++++ b/dlls/winex11.drv/xrandr.c
+@@ -378,7 +375,6 @@
+     XRRScreenResources *screen_resources;
+     XRROutputInfo *output_info;
+     XRRModeInfo *first_mode;
+-    INT major, event, error;
+     INT output_idx, i, j;
+     BOOL only_one_mode;
+ 
+@@ -429,15 +425,6 @@
+ 
+         if (!only_one_mode)
+             continue;
+-
+-        /* Check if it is NVIDIA proprietary driver */
+-        if (XQueryExtension( gdi_display, "NV-CONTROL", &major, &event, &error ))
+-        {
+-            ERR_(winediag)("Broken NVIDIA RandR detected, falling back to RandR 1.0. "
+-                           "Please consider using the Nouveau driver instead.\n");
+-            pXRRFreeScreenResources( screen_resources );
+-            return TRUE;
+-        }
+     }
+     pXRRFreeScreenResources( screen_resources );
+     return FALSE;

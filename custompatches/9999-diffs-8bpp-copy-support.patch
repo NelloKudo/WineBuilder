@@ -1,0 +1,55 @@
+diff --git a/dlls/windowscodecs/converter.c b/dlls/windowscodecs/converter.c
+index 11111111111..11111111111 100644
+--- a/dlls/windowscodecs/converter.c
++++ b/dlls/windowscodecs/converter.c
+@@ -1034,6 +1034,50 @@ static HRESULT copypixels_to_24bppBGR(struct FormatConverter *This, const WICRec
+ 
+     switch (source_format)
+     {
++    case format_8bppGray:
++        if (prc)
++        {
++            HRESULT res;
++            INT x, y;
++            BYTE *srcdata;
++            UINT srcstride, srcdatasize;
++            const BYTE *srcrow;
++            const BYTE *srcbyte;
++            BYTE *dstrow;
++            BYTE *dstpixel;
++
++            srcstride = prc->Width;
++            srcdatasize = srcstride * prc->Height;
++
++            srcdata = HeapAlloc(GetProcessHeap(), 0, srcdatasize);
++            if (!srcdata) return E_OUTOFMEMORY;
++
++            res = IWICBitmapSource_CopyPixels(This->source, prc, srcstride, srcdatasize, srcdata);
++
++            if (SUCCEEDED(res))
++            {
++                srcrow = srcdata;
++                dstrow = pbBuffer;
++                for (y=0; y<prc->Height; y++) {
++                    srcbyte = srcrow;
++                    dstpixel = dstrow;
++                    for (x=0; x<prc->Width; x++)
++                    {
++                        *dstpixel++ = *srcbyte;
++                        *dstpixel++ = *srcbyte;
++                        *dstpixel++ = *srcbyte;
++                        srcbyte++;
++                    }
++                    srcrow += srcstride;
++                    dstrow += cbStride;
++                }
++            }
++
++            HeapFree(GetProcessHeap(), 0, srcdata);
++
++            return res;
++        }
++        return S_OK;
+     case format_24bppBGR:
+     case format_24bppRGB:
+         if (prc)
