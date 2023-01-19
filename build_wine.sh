@@ -2,7 +2,9 @@
 
 ########################################################################
 ##
-## A script for Wine compilation.
+## A script for Wine compilation, forked from https://github.com/Kron4ek/Wine-Builds
+## to make applying patches easier. Thanks to Kron4ek and other contributors for the amazing work <3
+##
 ## By default it uses two Ubuntu bootstraps (x32 and x64), which it enters
 ## with bubblewrap (root rights are not required).
 ##
@@ -12,15 +14,24 @@
 ##
 ########################################################################
 
+Info()
+{
+	echo -e '\033[1;34m'"WineBuilder:\033[0m $*";
+}
+
 # Prevent launching as root
 if [ $EUID = 0 ] && [ -z "$ALLOW_ROOT" ]; then
-	echo "Do not run this script as root!"
+	Info "Do not run this script as root!"
 	echo
-	echo "If you really need to run it as root and you know what you are doing,"
-	echo "set the ALLOW_ROOT environment variable."
+	Info "If you really need to run it as root and you know what you are doing,"
+	Info "set the ALLOW_ROOT environment variable."
 
 	exit 1
 fi
+
+# This will make applying low-latency audio osu! patches to Wine possible
+# by replacing provided winepulse.drv to Vanilla Wine
+export WINE_OSU="true"
 
 # Wine version to compile.
 # You can set it to "latest" to compile the latest available version.
@@ -31,9 +42,6 @@ export WINE_VERSION="latest"
 
 # Available branches: vanilla, staging, staging-tkg, proton, wayland
 export WINE_BRANCH="staging"
-
-# You can set this to true if you want to use this script for osu! patches 
-export WINE_OSU="false"
 
 # Available proton branches: proton_3.7, proton_3.16, proton_4.2, proton_4.11
 # proton_5.0, proton_5.13, experimental_5.13, proton_6.3, experimental_6.3
@@ -51,6 +59,9 @@ export STAGING_VERSION=""
 # "--all -W ntdll-NtAlertThreadByThreadId"
 # Leave empty to apply all Staging patches
 export STAGING_ARGS=""
+
+# Use the ones below if you have issues with applying Winepulse patches
+#export STAGING_ARGS="--all -W winepulse-PulseAudio_Support -W winepulse-aux_channels"
 
 # Set this to a path to your Wine source code (for example, /home/username/wine-custom-src).
 # This is useful if you already have the Wine source code somewhere on your
@@ -161,8 +172,8 @@ mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}" || exit 1
 
 echo
-echo "Downloading the source code and patches"
-echo "Preparing Wine for compilation"
+Info "Downloading the source code and patches"
+Info "Preparing Wine for compilation"
 echo
 
 if [ -n "${CUSTOM_SRC_PATH}" ]; then
@@ -172,8 +183,8 @@ if [ -n "${CUSTOM_SRC_PATH}" ]; then
 		git clone "${CUSTOM_SRC_PATH}" wine
 	else
 		if [ ! -f "${CUSTOM_SRC_PATH}"/configure ]; then
-			echo "CUSTOM_SRC_PATH is set to an incorrect or non-existent directory!"
-			echo "Please make sure to use a directory with the correct Wine source code."
+			Info"CUSTOM_SRC_PATH is set to an incorrect or non-existent directory!"
+			Info "Please make sure to use a directory with the correct Wine source code."
 			exit 1
 		fi
 
@@ -231,6 +242,9 @@ else
 		if [ ! -f v${WINE_VERSION}.tar.gz ]; then
 			git clone https://github.com/wine-staging/wine-staging wine-staging-${WINE_VERSION}
 		fi
+		
+		echo
+		Info "Applying Wine-Staging patches.."
 
 		if [ -n "${STAGING_ARGS}" ]; then
 			wine-staging-${WINE_VERSION}/patches/patchinstall.sh DESTDIR="${BUILD_DIR}"/wine ${STAGING_ARGS}
@@ -240,7 +254,7 @@ else
 
 		if [ $? -ne 0 ]; then
 			echo
-			echo "Wine-Staging patches were not applied correctly!"
+			Info "Wine-Staging patches were not applied correctly!"
 			exit 1
 		fi
 	fi
@@ -249,14 +263,14 @@ fi
 if [ ! -d wine ]; then
 	clear
 	echo "No Wine source code found!"
-	echo "Make sure that the correct Wine version is specified."
+	Info "Make sure that the correct Wine version is specified."
 	exit 1
 fi
 
-#Changing winepulse.drv content for osu! if enabled
+# Changing winepulse.drv content for osu! if enabled
 if [ "${WINE_OSU}" = "true" ] ; then
 
-	echo "Applying osu! winepulse changes.."
+	Info "Applying osu! winepulse changes.."
 
 	if  [ -s "$curdir/winepulse-513.tar" ] ; then
 		mkdir -p $curdir/winepulse
@@ -272,16 +286,19 @@ if [ "${WINE_OSU}" = "true" ] ; then
 	rm -f "${BUILD_DIR}/wine/dlls/winepulse.drv/winepulse.drv.spec"
 	cp $curdir/winepulse/* ${BUILD_DIR}/wine/dlls/winepulse.drv
 	rm -rf $curdir/winepulse
+
+else
+	Info "Replacing Winepulse not needed, skipping.."
 fi
 
-#Applying custom patches
+# Applying custom patches to Wine
 patches_dir=$curdir/custompatches
 cd wine
 
 for i in "$patches_dir"/*patch; do
     [ ! -f "$i" ] && continue
-    echo "Applying custom patch '$i'" || (echo "Applying patch '$i' failed" && exit 1)
-    patch -Np1 -i "$i"
+    Info "Applying custom patch '$i'" 
+    patch -Np1 -i "$i" >> $curdir/patches.log || (Info "Applying patch '$i' failed" && exit 1)
     done
 
 dlls/winevulkan/make_vulkan
@@ -350,8 +367,8 @@ ${BWRAP32} make -j$(nproc)
 ${BWRAP32} make install
 
 clear
-echo "Compilation complete"
-echo "Creating and compressing archives..."
+Info "Compilation complete"
+Info "Creating and compressing archives..."
 
 cd "${BUILD_DIR}"
 
@@ -365,13 +382,32 @@ for build in wine-${BUILD_NAME}-x86 wine-${BUILD_NAME}-amd64; do
 			cp wine/wine-tkg-config.txt "${build}"
 		fi
 
-		tar -Jcf "${build}".tar.xz "${build}"
+		if [ "${WINE_OSU}" = "true" ] ; then
+			
+			if [ "${build}" = "wine-${BUILD_NAME}-amd64" ]; then
+				
+				mv "${build}" "wine-osu"
+				tar -Jcf "wine-osu-${WINE_VERSION}-x86_64".tar.xz wine-osu
+				mv "wine-osu-${WINE_VERSION}-x86_64".tar.xz "${scriptdir}"
 
+			else
+
+				mv "${build}" "wine-osu-x86"
+				tar -Jcf "wine-osu-${WINE_VERSION}-x86".tar.xz wine-osu-x86
+				mv "wine-osu-${WINE_VERSION}-x86".tar.xz "${scriptdir}"
+
+			fi
+		
+		else
+
+		tar -Jcf "${build}".tar.xz "${build}"
 		mv "${build}".tar.xz "${scriptdir}"
+
+		fi
 	fi
 done
 
 rm -rf "${BUILD_DIR}"
 
 clear
-echo "Done"
+Info "Done"
