@@ -19,6 +19,12 @@ Info()
 	echo -e '\033[1;34m'"WineBuilder:\033[0m $*";
 }
 
+
+Error()
+{
+    echo -e '\033[1;31m'"WineBuilder:\033[0m $*"; exit 1;
+}
+
 # Prevent launching as root
 if [ $EUID = 0 ] && [ -z "$ALLOW_ROOT" ]; then
 	Info "Do not run this script as root!"
@@ -224,32 +230,41 @@ elif [ "$WINE_BRANCH" = "proton" ]; then
 else
 	BUILD_NAME="${WINE_VERSION}"
 
-	wget -q --show-progress https://dl.winehq.org/wine/source/${WINE_URL_VERSION}/wine-${WINE_VERSION}.tar.xz
+	wget -q --show-progress "https://dl.winehq.org/wine/source/${WINE_URL_VERSION}/wine-${WINE_VERSION}.tar.xz"
 
-	tar xf wine-${WINE_VERSION}.tar.xz
-	mv wine-${WINE_VERSION} wine
+	tar xf "wine-${WINE_VERSION}.tar.xz"
+	mv "wine-${WINE_VERSION}" wine
 
 	if [ "${WINE_BRANCH}" = "staging" ]; then
-		if [ ! -z "$STAGING_VERSION" ]; then
+		if [ -n "$STAGING_VERSION" ]; then
 			WINE_VERSION="${STAGING_VERSION}"
 		fi
 
 		BUILD_NAME="${WINE_VERSION}"-staging
 
-		wget -q --show-progress https://github.com/wine-staging/wine-staging/archive/v${WINE_VERSION}.tar.gz
-		tar xf v${WINE_VERSION}.tar.gz
+		wget -q --show-progress "https://github.com/wine-staging/wine-staging/archive/v${WINE_VERSION}.tar.gz"
+		tar xf v"${WINE_VERSION}".tar.gz
 
-		if [ ! -f v${WINE_VERSION}.tar.gz ]; then
-			git clone https://github.com/wine-staging/wine-staging wine-staging-${WINE_VERSION}
+		if [ ! -f v"${WINE_VERSION}".tar.gz ]; then
+			git clone https://github.com/wine-staging/wine-staging wine-staging-"${WINE_VERSION}"
 		fi
 		
 		echo
+		
 		Info "Applying Wine-Staging patches.."
 
-		if [ -n "${STAGING_ARGS}" ]; then
-			wine-staging-${WINE_VERSION}/patches/patchinstall.sh DESTDIR="${BUILD_DIR}"/wine ${STAGING_ARGS}
+		if [ -f wine-staging-"${WINE_VERSION}"/patches/patchinstall.sh ]; then
+			staging_patcher=("${BUILD_DIR}"/wine-staging-"${WINE_VERSION}"/patches/patchinstall.sh
+							DESTDIR="${BUILD_DIR}"/wine)
 		else
-			wine-staging-${WINE_VERSION}/patches/patchinstall.sh DESTDIR="${BUILD_DIR}"/wine --all
+			staging_patcher=("${BUILD_DIR}"/wine-staging-"${WINE_VERSION}"/staging/patchinstall.py)
+		fi
+
+		cd wine || exit
+		if [ -n "${STAGING_ARGS}" ]; then
+			"${staging_patcher[@]}" ${STAGING_ARGS}
+		else
+			"${staging_patcher[@]}" --all
 		fi
 
 		if [ $? -ne 0 ]; then
@@ -298,7 +313,7 @@ cd wine
 for i in "$patches_dir"/*patch; do
     [ ! -f "$i" ] && continue
     Info "Applying custom patch '$i'" 
-    patch -Np1 -i "$i" >> $curdir/patches.log || (Info "Applying patch '$i' failed" && exit 1)
+    patch -Np1 -i "$i" >> $curdir/patches.log || Error "Applying patch '$i' failed, read at: $curdir/patches.log"
     done
 
 dlls/winevulkan/make_vulkan
@@ -351,7 +366,7 @@ export CROSSCXXFLAGS="${CROSSCFLAGS_X32}"
 
 mkdir "${BUILD_DIR}"/build32-tools
 cd "${BUILD_DIR}"/build32-tools
-${BWRAP32} "${BUILD_DIR}"/wine/configure ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-x86
+PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-x86
 ${BWRAP32} make -j$(nproc)
 ${BWRAP32} make install
 
@@ -362,7 +377,7 @@ export CROSSCXXFLAGS="${CROSSCFLAGS_X64}"
 
 mkdir "${BUILD_DIR}"/build32
 cd "${BUILD_DIR}"/build32
-${BWRAP32} "${BUILD_DIR}"/wine/configure --with-wine64="${BUILD_DIR}"/build64 --with-wine-tools="${BUILD_DIR}"/build32-tools ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-amd64
+PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure --with-wine64="${BUILD_DIR}"/build64 --with-wine-tools="${BUILD_DIR}"/build32-tools ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-amd64
 ${BWRAP32} make -j$(nproc)
 ${BWRAP32} make install
 
