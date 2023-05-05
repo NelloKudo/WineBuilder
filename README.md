@@ -14,15 +14,15 @@ The binaries built from this script use the same configuration as the [original 
 
 ## Requirements
 
-Use your package manager to install the following dependencies: `git`, `autoconf`, `bubblewrap`, `perl`, `debootstrap`, `wget`, `ccache`.
+Use your package manager to install the following dependencies: `git`, `autoconf`, `bubblewrap`, `perl`, `debootstrap`, `wget`, `ccache`, `bc`.
 
 **You can use the following:**
 
-**Ubuntu/Debian:** `sudo apt install -y git autoconf bubblewrap perl debootstrap wget ccache`
+**Ubuntu/Debian:** `sudo apt install -y git autoconf bubblewrap perl debootstrap wget ccache bc`
 
-**Arch Linux:** `sudo pacman -Sy --needed  --noconfirm git autoconf bubblewrap perl debootstrap wget ccache`
+**Arch Linux:** `sudo pacman -Sy --needed  --noconfirm git autoconf bubblewrap perl debootstrap wget ccache bc`
 
-**Fedora:** `sudo dnf install -y git autoconf bubblewrap perl debootstrap wget ccache`
+**Fedora:** `sudo dnf install -y git autoconf bubblewrap perl debootstrap wget ccache bc`
 
 ## Building Wine
 

@@ -8,7 +8,7 @@
 ## By default it uses two Ubuntu bootstraps (x32 and x64), which it enters
 ## with bubblewrap (root rights are not required).
 ##
-## This script requires: git, wget, autoconf, xz, bubblewrap
+## This script requires: git, wget, autoconf, xz, bubblewrap, bc
 ##
 ## You can change the environment variables below to your desired values.
 ##
@@ -64,7 +64,10 @@ export STAGING_VERSION=""
 # patchset, but apply all other patches, then set this variable to
 # "--all -W ntdll-NtAlertThreadByThreadId"
 # Leave empty to apply all Staging patches
-export STAGING_ARGS=""
+export STAGING_ARGS="" 
+
+# Use the ones below to fix alt-tab issues for Wine 8
+#export STAGING_ARGS="--all -W winex11-_NET_ACTIVE_WINDOW -W user32-alttab-focus -W winex11-WM_WINDOWPOSCHANGING" 
 
 # Use the ones below if you have issues with applying Winepulse patches
 #export STAGING_ARGS="--all -W winepulse-PulseAudio_Support -W winepulse-aux_channels"
@@ -275,6 +278,8 @@ else
 	fi
 fi
 
+cd "${BUILD_DIR}" || exit 1
+
 if [ ! -d wine ]; then
 	clear
 	echo "No Wine source code found!"
@@ -285,22 +290,40 @@ fi
 # Changing winepulse.drv content for osu! if enabled
 if [ "${WINE_OSU}" = "true" ] ; then
 
-	Info "Applying osu! winepulse changes.."
+	osu_files=("winepulse-513.tar" "mmdevapi-revert.tar" "winealsa-revert.tar" "winecoreaudio-revert.tar" "wineoss-revert.tar")
 
-	if  [ -s "$curdir/winepulse-513.tar" ] ; then
-		mkdir -p $curdir/winepulse
-		tar -xf "$curdir/winepulse-513.tar" -C "$curdir/winepulse"
-	else
-		wget -O "$curdir/winepulse-513.tar" "https://www.dropbox.com/s/o8b0p9q0tmwwjox/winepulse-513.tar"
-		mkdir -p $curdir/winepulse
-		tar -xf "$curdir/winepulse-513.tar" -C "$curdir/winepulse"
+	for file in "${osu_files[@]}"
+	do
+		if [ ! -f "$curdir/osu-misc/$file" ]; then
+			Error "Some file is missing! Please clone the repo again!"
+		fi
+	done
+
+	Info "Reverting winepulse..."
+
+	rm -f "${BUILD_DIR}"/wine/dlls/winepulse.drv/*
+	tar -xf "$curdir/osu-misc/winepulse-513.tar" -C "${BUILD_DIR}/wine/dlls/winepulse.drv"
+
+	if (( $(echo "$WINE_VERSION > 8.6" | bc -l) )); then
+
+		# All the reverts fallback to Wine 8.2
+		Info "Reverting mmdevapi..."
+		rm -f "${BUILD_DIR}"/wine/dlls/mmdevapi/*
+		tar -xf "$curdir/osu-misc/mmdevapi-revert.tar" -C "${BUILD_DIR}/wine/dlls/mmdevapi"
+
+		Info "Reverting winealsa..."
+		rm -f "${BUILD_DIR}"/wine/dlls/winealsa.drv/*
+		tar -xf "$curdir/osu-misc/winealsa-revert.tar" -C "${BUILD_DIR}/wine/dlls/winealsa.drv"
+
+		Info "Reverting winecoreaudio..."
+		rm -f "${BUILD_DIR}"/wine/dlls/winecoreaudio.drv/*
+		tar -xf "$curdir/osu-misc/winecoreaudio-revert.tar" -C "${BUILD_DIR}/wine/dlls/winecoreaudio.drv"
+
+		Info "Reverting wineoss..."
+		rm -f "${BUILD_DIR}"/wine/dlls/wineoss.drv/*
+		tar -xf "$curdir/osu-misc/wineoss-revert.tar" -C "${BUILD_DIR}/wine/dlls/wineoss.drv"
+
 	fi
-	
-	rm -f "${BUILD_DIR}/wine/dlls/winepulse.drv/Makefile.in"
-	rm -f "${BUILD_DIR}/wine/dlls/winepulse.drv/mmdevdrv.c"
-	rm -f "${BUILD_DIR}/wine/dlls/winepulse.drv/winepulse.drv.spec"
-	cp $curdir/winepulse/* ${BUILD_DIR}/wine/dlls/winepulse.drv
-	rm -rf $curdir/winepulse
 
 else
 	Info "Replacing Winepulse not needed, skipping.."
