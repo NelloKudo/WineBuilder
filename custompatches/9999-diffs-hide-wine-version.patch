@@ -1,0 +1,54 @@
+diff --git a/dlls/kernel32/module.c b/dlls/kernel32/module.c
+index 11111111111..11111111111 100644
+--- a/dlls/kernel32/module.c
++++ b/dlls/kernel32/module.c
+@@ -262,6 +262,34 @@ BOOL WINAPI GetBinaryTypeA( LPCSTR lpApplicationName, LPDWORD lpBinaryType )
+     return GetBinaryTypeW(NtCurrentTeb()->StaticUnicodeString.Buffer, lpBinaryType);
+ }
+
++static BOOL block_wine_get_version = FALSE;
++
++BOOL CALLBACK init_block_wine_get_version( INIT_ONCE* init_once, PVOID param, PVOID *ctx )
++{
++    WCHAR *buffer;
++    DWORD size;
++
++    if ((size = GetEnvironmentVariableW( L"WINE_BLOCK_GET_VERSION", NULL, 0 )))
++    {
++        if (!(buffer = HeapAlloc( GetProcessHeap(), 0, sizeof(*buffer) * size )))
++        {
++            ERR("No memory.\n");
++            return FALSE;
++        }
++
++        if (GetEnvironmentVariableW( L"WINE_BLOCK_GET_VERSION", buffer, size ) != size - 1)
++        {
++            ERR("Error getting WINE_BLOCK_GET_VERSION env variable.\n");
++            return FALSE;
++        }
++
++        block_wine_get_version = *buffer && !!wcsncmp( buffer, L"0", 1 );
++
++        HeapFree( GetProcessHeap(), 0, buffer );
++    }
++    return TRUE;
++}
++
+ /***********************************************************************
+  *           GetProcAddress   		(KERNEL32.@)
+  *
+@@ -279,6 +307,14 @@ FARPROC get_proc_address( HMODULE hModule, LPCSTR function )
+ {
+     FARPROC     fp;
+
++    if ((ULONG_PTR)function >> 16)
++    {
++        static INIT_ONCE init_once = INIT_ONCE_STATIC_INIT;
++        InitOnceExecuteOnce( &init_once, init_block_wine_get_version, NULL, NULL );
++        if (block_wine_get_version && !strncmp( function, "wine_get_version", 16 ))
++            return NULL;
++    }
++
+     if (!hModule) hModule = NtCurrentTeb()->Peb->ImageBaseAddress;
+
+     if ((ULONG_PTR)function >> 16)

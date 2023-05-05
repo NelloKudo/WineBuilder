@@ -1,0 +1,425 @@
+From 493e0bfa2cc30f2240f591a82d7281fda424b1f2 Mon Sep 17 00:00:00 2001
+From: Torge Matthies <openglfreak@googlemail.com>
+Date: Sun, 3 Jul 2022 15:54:01 +0200
+Subject: [PATCH 2/2] winex11.drv: Add OpenGL latency reduction code.
+
+---
+ dlls/winex11.drv/opengl.c | 274 ++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 261 insertions(+), 13 deletions(-)
+
+diff --git a/dlls/winex11.drv/opengl.c b/dlls/winex11.drv/opengl.c
+index 2acf9db5372c..0ff5c43a1645 100644
+--- a/dlls/winex11.drv/opengl.c
++++ b/dlls/winex11.drv/opengl.c
+@@ -42,6 +42,8 @@
+ #include "xcomposite.h"
+ #include "winternl.h"
+ #include "wine/debug.h"
++#include "wine/server.h"
++#include "../win32u/ntuser_private.h"
+ 
+ #ifdef SONAME_LIBGL
+ 
+@@ -176,6 +178,8 @@ typedef XID GLXPbuffer;
+ #define GLX_RENDERER_ID_MESA              0x818E
+ /** GLX_NV_float_buffer */
+ #define GLX_FLOAT_COMPONENTS_NV           0x20B0
++/** GLX_EXT_swap_control */
++/*#define GLX_SWAP_INTERVAL_EXT             0x20F1*/
+ 
+ 
+ static char *glExtensions;
+@@ -218,6 +222,8 @@ enum dc_gl_type
+     DC_GL_PBUFFER     /* pseudo memory DC using a PBuffer */
+ };
+ 
++typedef LONGLONG rtime_t;
++
+ struct gl_drawable
+ {
+     LONG                           ref;          /* reference count */
+@@ -230,6 +236,11 @@ struct gl_drawable
+     int                            swap_interval;
+     BOOL                           refresh_swap_interval;
+     BOOL                           mutable_pf;
++    rtime_t                        last_swap_time;   /* last exit of wglSwapBuffers, 0 if unknown */
++    rtime_t                        last_vblank_time; /* last known vblank time, 0 if unknown */
++    BOOL                           previous_frame_synchronized; /* whether the previous frame synchronized to vblank */
++    rtime_t                        frame_time;       /* time needed to render a frame, 0 if unknown */
++    rtime_t                        vblank_interval;  /* time between vblanks, 0 if unknown */
+ };
+ 
+ struct wgl_pbuffer
+@@ -526,7 +537,7 @@ static BOOL X11DRV_WineGL_InitOpenglInfo(void)
+ done:
+     if(vis) XFree(vis);
+     if(ctx) {
+-        pglXMakeCurrent(gdi_display, None, NULL);    
++        pglXMakeCurrent(gdi_display, None, NULL);
+         pglXDestroyContext(gdi_display, ctx);
+     }
+     if (win != root) XDestroyWindow( gdi_display, win );
+@@ -744,7 +755,7 @@ static const char *debugstr_fbconfig( GLXFBConfig fbconfig )
+ 
+ static int ConvertAttribWGLtoGLX(const int* iWGLAttr, int* oGLXAttr, struct wgl_pbuffer* pbuf) {
+   int nAttribs = 0;
+-  unsigned cur = 0; 
++  unsigned cur = 0;
+   int attr, pop;
+   int drawattrib = 0;
+   int nvfloatattrib = GLX_DONT_CARE;
+@@ -808,7 +819,7 @@ static int ConvertAttribWGLtoGLX(const int* iWGLAttr, int* oGLXAttr, struct wgl_
+       case WGL_TYPE_RGBA_FLOAT_ATI: pixelattrib = GLX_RGBA_FLOAT_BIT; break ;
+       case WGL_TYPE_RGBA_UNSIGNED_FLOAT_EXT: pixelattrib = GLX_RGBA_UNSIGNED_FLOAT_BIT_EXT; break ;
+       default:
+-        ERR("unexpected PixelType(%x)\n", pop);	
++        ERR("unexpected PixelType(%x)\n", pop);
+       }
+       break;
+ 
+@@ -917,7 +928,7 @@ static int ConvertAttribWGLtoGLX(const int* iWGLAttr, int* oGLXAttr, struct wgl_
+     case WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_RG_NV:
+     case WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_RGB_NV:
+     case WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_RGBA_NV:
+-      /** cannot be converted, see direct handling on 
++      /** cannot be converted, see direct handling on
+        *   - wglGetPixelFormatAttribivARB
+        *  TODO: wglChoosePixelFormat
+        */
+@@ -2157,7 +2168,7 @@ static struct wgl_pbuffer *X11DRV_wglCreatePbufferARB( HDC hdc, int iPixelFormat
+     object->fmt = fmt;
+ 
+     PUSH2(attribs, GLX_PBUFFER_WIDTH,  iWidth);
+-    PUSH2(attribs, GLX_PBUFFER_HEIGHT, iHeight); 
++    PUSH2(attribs, GLX_PBUFFER_HEIGHT, iHeight);
+     while (piAttribList && 0 != *piAttribList) {
+         int attr_v;
+         switch (*piAttribList) {
+@@ -2704,7 +2715,7 @@ static BOOL X11DRV_wglGetPixelFormatAttribivARB( HDC hdc, int iPixelFormat, int
+                 continue;
+ 
+             case WGL_SUPPORT_OPENGL_ARB:
+-                piValues[i] = GL_TRUE; 
++                piValues[i] = GL_TRUE;
+                 continue;
+ 
+             case WGL_ACCELERATION_ARB:
+@@ -2752,14 +2763,14 @@ static BOOL X11DRV_wglGetPixelFormatAttribivARB( HDC hdc, int iPixelFormat, int
+             case WGL_BIND_TO_TEXTURE_RGBA_ARB:
+                 if (!use_render_texture_emulation) {
+                     piValues[i] = GL_FALSE;
+-                    continue;	
++                    continue;
+                 }
+                 curGLXAttr = GLX_RENDER_TYPE;
+                 if (!fmt) goto pix_error;
+                 hTest = pglXGetFBConfigAttrib(gdi_display, fmt->fbconfig, curGLXAttr, &tmp);
+                 if (hTest) goto get_error;
+                 if (GLX_COLOR_INDEX_BIT == tmp) {
+-                    piValues[i] = GL_FALSE;  
++                    piValues[i] = GL_FALSE;
+                     continue;
+                 }
+                 hTest = pglXGetFBConfigAttrib(gdi_display, fmt->fbconfig, GLX_DRAWABLE_TYPE, &tmp);
+@@ -2914,8 +2925,8 @@ static BOOL X11DRV_wglGetPixelFormatAttribivARB( HDC hdc, int iPixelFormat, int
+             hTest = pglXGetFBConfigAttrib(gdi_display, fmt->fbconfig, curGLXAttr, piValues + i);
+             if (hTest) goto get_error;
+             curGLXAttr = 0;
+-        } else { 
+-            piValues[i] = GL_FALSE; 
++        } else {
++            piValues[i] = GL_FALSE;
+         }
+     }
+     return GL_TRUE;
+@@ -3313,6 +3324,130 @@ static void X11DRV_WineGL_LoadExtensions(void)
+     }
+ }
+ 
++static inline BOOL allow_latency_reduction( void )
++{
++    static int status = -1;
++    if (status == -1)
++    {
++        const char *env = getenv( "WINE_OPENGL_LATENCY_REDUCTION" );
++        status = !!(env && atoi(env));
++    }
++    return status == 1;
++}
++
++#define TICKSPERSEC 10000000
++
++typedef struct ftime_t {
++    LONGLONG time;
++    ULONGLONG freq;
++} ftime_t;
++
++static inline ftime_t current_ftime( void )
++{
++    LARGE_INTEGER counter, freq;
++    ftime_t ret;
++    NtQueryPerformanceCounter( &counter, &freq );
++    ret.time = counter.QuadPart;
++    ret.freq = (ULONGLONG)freq.QuadPart;
++    return ret;
++}
++
++static inline rtime_t ftime_to_rtime( ftime_t ftime, BOOL round_up )
++{
++    ftime.time *= TICKSPERSEC;
++    if (round_up)
++        ftime.time += ftime.freq - 1;
++    return ftime.time / ftime.freq;
++}
++
++static inline rtime_t current_rtime( BOOL round_up )
++{
++    return ftime_to_rtime( current_ftime(), round_up );
++}
++
++static rtime_t get_vblank_interval( HWND hwnd )
++{
++    HMONITOR monitor;
++    UNICODE_STRING device_name;
++    MONITORINFOEXW moninfo = { sizeof(MONITORINFOEXW) };
++    DEVMODEW devmode = { {0}, 0, 0, sizeof(DEVMODEW) };
++
++    monitor = NtUserMonitorFromWindow( hwnd, MONITOR_DEFAULTTONEAREST );
++    if (!monitor || !NtUserGetMonitorInfo( monitor, (MONITORINFO*)&moninfo ))
++        return 0;
++
++    RtlInitUnicodeString( &device_name, moninfo.szDevice );
++    if (!NtUserEnumDisplaySettings( &device_name, ENUM_CURRENT_SETTINGS, &devmode, 0 )
++        || devmode.dmDisplayFrequency <= 1)
++        return 0;
++    MESSAGE("detected display frequency: %u\n", devmode.dmDisplayFrequency);
++    return TICKSPERSEC / devmode.dmDisplayFrequency;
++}
++
++#define FRAMETIME_MARGIN_SHIFT 2
++
++static inline rtime_t frame_time_with_margin( rtime_t frame_time )
++{
++    return frame_time + (frame_time >> FRAMETIME_MARGIN_SHIFT) + 3500;
++}
++
++static void get_swap_interval(GLXDrawable drawable, int *interval)
++{
++    /* HACK: does not work correctly with __GL_SYNC_TO_VBLANK */
++    /*pglXQueryDrawable(gdi_display, gl->drawable, GLX_SWAP_INTERVAL_EXT, (unsigned int*)interval);*/
++    *interval = 0;
++}
++
++#define WAIT_MASK (QS_MOUSEBUTTON | QS_KEY | QS_SENDMESSAGE | QS_TIMER | QS_HOTKEY)
++
++static void msg_wait( const LARGE_INTEGER *timeout )
++{
++    LARGE_INTEGER to = *timeout, to2 = to;
++    rtime_t start, end;
++    DWORD ret;
++
++    /* HACK: __wine_msg_wait_objects likes to wait for about 1 ms too long */
++
++    if (to2.QuadPart < 0)
++    {
++        to2.QuadPart += 10000;
++        if (to2.QuadPart >= 0)
++        {
++            end = current_rtime( TRUE );
++            goto busy_loop;
++        }
++    }
++    else if (to2.QuadPart >= 10000)
++        to2.QuadPart -= 10000;
++
++    if (to2.QuadPart >= 0)
++    {
++        __wine_msg_wait_objects( 0, NULL, &to2, WAIT_MASK, MWMO_INPUTAVAILABLE );
++        return;
++    }
++
++again:
++    start = current_rtime( FALSE );
++    ret = __wine_msg_wait_objects( 0, NULL, &to2, WAIT_MASK, MWMO_INPUTAVAILABLE );
++    if (ret == WAIT_OBJECT_0)
++        return;
++    end = current_rtime( TRUE );
++
++    to.QuadPart += end - start;
++    if (to.QuadPart < -11000)
++    {
++        to2.QuadPart = to.QuadPart + 10000;
++        goto again;
++    }
++
++busy_loop:
++    if (to.QuadPart < -1000)
++    {
++        end = end - to.QuadPart - 1000;
++        while (current_rtime( TRUE ) < end)
++            YieldProcessor();
++    }
++}
+ 
+ /**
+  * glxdrv_SwapBuffers
+@@ -3326,6 +3461,11 @@ static BOOL WINAPI glxdrv_wglSwapBuffers( HDC hdc )
+     struct wgl_context *ctx = NtCurrentTeb()->glContext;
+     INT64 ust, msc, sbc, target_sbc = 0;
+ 
++    BOOL enable_latency_reduction = FALSE;
++    BOOL synchronize_to_vblank = FALSE;
++    rtime_t frame_end_time;
++    rtime_t next_vblank_time = 0;
++
+     TRACE("(%p)\n", hdc);
+ 
+     escape.code = X11DRV_FLUSH_GL_DRAWABLE;
+@@ -3338,18 +3478,78 @@ static BOOL WINAPI glxdrv_wglSwapBuffers( HDC hdc )
+         return FALSE;
+     }
+ 
++    if (allow_latency_reduction())
++        enable_latency_reduction = gl->type == DC_GL_WINDOW
++            || gl->type == DC_GL_CHILD_WIN || gl->type == DC_GL_PIXMAP_WIN;
++
++    if (enable_latency_reduction)
++    {
++        if (ctx && (gl->type == DC_GL_WINDOW || gl->type == DC_GL_CHILD_WIN
++                    || gl->type == DC_GL_PIXMAP_WIN))
++            sync_context( ctx );
++        pglFinish();
++        frame_end_time = current_rtime( TRUE );
++    }
++
+     pthread_mutex_lock( &context_mutex );
+-    if (gl->refresh_swap_interval)
++
++    if (enable_latency_reduction)
++    {
++        if (!gl->vblank_interval)
++        {
++            HWND hwnd = 0;
++            assert(!XFindContext( gdi_display, gl->window, winContext, (char **)&hwnd ));
++            assert(hwnd);
++            gl->vblank_interval = get_vblank_interval( hwnd );
++            assert(gl->vblank_interval);
++        }
++
++        if (gl->last_vblank_time)
++        {
++            next_vblank_time = gl->last_vblank_time + gl->vblank_interval;
++            while (next_vblank_time < frame_end_time)
++                next_vblank_time += gl->vblank_interval;
++        }
++
++        if (gl->last_swap_time)
++        {
++            rtime_t new_frame_time = frame_end_time - gl->last_swap_time;
++            if (new_frame_time >= gl->frame_time)
++                gl->frame_time = new_frame_time;
++            else if (gl->frame_time > new_frame_time * 3)
++                gl->frame_time = frame_time_with_margin( new_frame_time );
++            else
++                gl->frame_time = (gl->frame_time * 20 + new_frame_time) / 21;
++        }
++
++        if (frame_end_time - gl->last_vblank_time >= TICKSPERSEC
++            || (!gl->refresh_swap_interval && next_vblank_time - frame_end_time <= frame_time_with_margin( gl->frame_time )))
++            synchronize_to_vblank = TRUE;
++    }
++
++    if (synchronize_to_vblank)
++    {
++        if (!gl->previous_frame_synchronized)
++        {
++            get_swap_interval(gl->drawable, &gl->swap_interval);
++            if (!set_swap_interval(gl->drawable, 1))
++                synchronize_to_vblank = FALSE;
++            gl->previous_frame_synchronized = TRUE;
++        }
++    }
++    else if (gl->refresh_swap_interval || gl->previous_frame_synchronized)
+     {
+         set_swap_interval(gl->drawable, gl->swap_interval);
+         gl->refresh_swap_interval = FALSE;
++        gl->previous_frame_synchronized = FALSE;
+     }
++
+     pthread_mutex_unlock( &context_mutex );
+ 
+     switch (gl->type)
+     {
+     case DC_GL_PIXMAP_WIN:
+-        if (ctx) sync_context( ctx );
++        if (!enable_latency_reduction && ctx) sync_context( ctx );
+         escape.gl_drawable = gl->pixmap;
+         if (pglXCopySubBufferMESA) {
+             /* (glX)SwapBuffers has an implicit glFlush effect, however
+@@ -3370,7 +3570,7 @@ static BOOL WINAPI glxdrv_wglSwapBuffers( HDC hdc )
+         break;
+     case DC_GL_WINDOW:
+     case DC_GL_CHILD_WIN:
+-        if (ctx) sync_context( ctx );
++        if (!enable_latency_reduction && ctx) sync_context( ctx );
+         if (gl->type == DC_GL_CHILD_WIN) escape.gl_drawable = gl->window;
+         /* fall through */
+     default:
+@@ -3387,6 +3587,54 @@ static BOOL WINAPI glxdrv_wglSwapBuffers( HDC hdc )
+     if (escape.gl_drawable && pglXWaitForSbcOML)
+         pglXWaitForSbcOML( gdi_display, gl->drawable, target_sbc, &ust, &msc, &sbc );
+ 
++    if (enable_latency_reduction)
++    {
++        rtime_t current_time = current_rtime( FALSE );
++
++        if (!synchronize_to_vblank && gl->last_vblank_time && gl->frame_time)
++        {
++            LARGE_INTEGER timeout;
++
++            next_vblank_time = gl->last_vblank_time + gl->vblank_interval;
++            while (next_vblank_time < current_time + frame_time_with_margin( gl->frame_time ))
++                next_vblank_time += gl->vblank_interval;
++
++            timeout.QuadPart = -(next_vblank_time - frame_time_with_margin( gl->frame_time ) - current_time);
++            if (timeout.QuadPart < 0 && -timeout.QuadPart < TICKSPERSEC)
++                msg_wait( &timeout );
++
++            current_time = current_rtime( FALSE );
++        }
++
++        pthread_mutex_lock( &context_mutex );
++
++        gl->last_swap_time = current_time;
++        if (synchronize_to_vblank)
++            gl->last_vblank_time = current_time;
++
++        pthread_mutex_unlock( &context_mutex );
++
++        if (synchronize_to_vblank && gl->frame_time)
++        {
++            LARGE_INTEGER timeout;
++
++            next_vblank_time = gl->last_vblank_time + gl->vblank_interval;
++            while (next_vblank_time < current_time + frame_time_with_margin( gl->frame_time ))
++                next_vblank_time += gl->vblank_interval;
++
++            timeout.QuadPart = -(next_vblank_time - frame_time_with_margin( gl->frame_time ) - current_time);
++            if (timeout.QuadPart < 0 && -timeout.QuadPart < TICKSPERSEC)
++            {
++                msg_wait( &timeout );
++
++                current_time = current_rtime( FALSE );
++                pthread_mutex_lock( &context_mutex );
++                gl->last_swap_time = current_time;
++                pthread_mutex_unlock( &context_mutex );
++            }
++        }
++    }
++
+     release_gl_drawable( gl );
+ 
+     if (escape.gl_drawable)
+-- 
+2.38.1
+
