@@ -46,8 +46,11 @@ export WINE_OSU="true"
 # use their own versions.
 export WINE_VERSION="latest"
 
-# Available branches: vanilla, staging, staging-tkg, proton, wayland
+# Available branches: vanilla, staging, staging-tkg, proton, wayland, custom
 export WINE_BRANCH="staging"
+
+# Custom path for Wine source
+export CUSTOM_WINE_SOURCE=""
 
 # Available proton branches: proton_3.7, proton_3.16, proton_4.2, proton_4.11
 # proton_5.0, proton_5.13, experimental_5.13, proton_6.3, experimental_6.3
@@ -230,6 +233,15 @@ elif [ "$WINE_BRANCH" = "proton" ]; then
 
 	WINE_VERSION="$(cat wine/VERSION | tail -c +14)"
 	BUILD_NAME="${WINE_VERSION}"-proton
+elif [ "$WINE_BRANCH" = "custom" ]; then
+	if  [ ! -z "$CUSTOM_WINE_SOURCE" ]; then
+		git clone "$CUSTOM_WINE_SOURCE" wine || Error "Cloning failed, is the source you used working? Please try again."
+
+		WINE_VERSION="$(cat wine/VERSION | tail -c +14)"
+		BUILD_NAME="${WINE_VERSION}"-custom
+	else
+		Error "Please add a Wine source to CUSTOM_WINE_SOURCE."
+	fi
 else
 	BUILD_NAME="${WINE_VERSION}"
 
