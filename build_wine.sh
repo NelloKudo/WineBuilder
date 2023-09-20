@@ -46,7 +46,7 @@ export WINE_OSU="true"
 # use their own versions.
 export WINE_VERSION="latest"
 
-# Available branches: vanilla, staging, staging-tkg, proton, wayland, custom
+# Available branches: vanilla, staging, staging-tkg, proton, wayland, custom, local
 export WINE_BRANCH="staging"
 
 # Custom path for Wine source
@@ -242,6 +242,10 @@ elif [ "$WINE_BRANCH" = "custom" ]; then
 	else
 		Error "Please add a Wine source to CUSTOM_WINE_SOURCE."
 	fi
+elif [ "$WINE_BRANCH" = "local" ]; then
+	echo ""
+	## Time for your local tests! Example, try your own source like this:
+	# cp -r /your/local/wine "${BUILD_DIR}"/wine
 else
 	BUILD_NAME="${WINE_VERSION}"
 
@@ -316,9 +320,9 @@ if [ "${WINE_OSU}" = "true" ] ; then
 	rm -f "${BUILD_DIR}"/wine/dlls/winepulse.drv/*
 	tar -xf "$curdir/osu-misc/winepulse-513.tar" -C "${BUILD_DIR}/wine/dlls/winepulse.drv"
 
-	if (( $(echo "$WINE_VERSION > 8.6" | bc -l) )); then
+	# If this does not work, please just comment these lines yourself. You only need this for versions after 8.14!
+	if (( $(echo "$WINE_VERSION > 8.14" | bc -l) )); then
 
-		# All the reverts fallback to Wine 8.2
 		Info "Reverting mmdevapi..."
 		rm -f "${BUILD_DIR}"/wine/dlls/mmdevapi/*
 		tar -xf "$curdir/osu-misc/mmdevapi-revert.tar" -C "${BUILD_DIR}/wine/dlls/mmdevapi"
