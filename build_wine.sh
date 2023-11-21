@@ -46,8 +46,8 @@ export WINE_OSU="true"
 # use their own versions.
 export WINE_VERSION="latest"
 
-# Available branches: vanilla, staging, staging-tkg, proton, wayland, custom, local
-export WINE_BRANCH="staging"
+# Available branches: winello, vanilla, staging, staging-tkg, proton, wayland, custom, local
+export WINE_BRANCH="winello"
 
 # Custom path for Wine source
 export CUSTOM_WINE_SOURCE=""
@@ -242,6 +242,11 @@ elif [ "$WINE_BRANCH" = "custom" ]; then
 	else
 		Error "Please add a Wine source to CUSTOM_WINE_SOURCE."
 	fi
+elif [ "$WINE_BRANCH" = "winello" ]; then
+	git clone https://github.com/NelloKudo/winello-wine.git wine || Error "Cloning failed, is the source you used working? Please try again."
+
+	WINE_VERSION="$(cat wine/VERSION | tail -c +14)"
+	BUILD_NAME="${WINE_VERSION}"-winello
 elif [ "$WINE_BRANCH" = "local" ]; then
 	echo ""
 	## Time for your local tests! Example, try your own source like this:
@@ -303,10 +308,10 @@ if [ ! -d wine ]; then
 	exit 1
 fi
 
-# Changing winepulse.drv content for osu! if enabled
+# Changing winepulse.drv and other audio components for osu! if enabled
 if [ "${WINE_OSU}" = "true" ] ; then
 
-	osu_files=("winepulse-513.tar" "mmdevapi-revert.tar" "winealsa-revert.tar" "winecoreaudio-revert.tar" "wineoss-revert.tar")
+	osu_files=("audio-revert.tar")
 
 	for file in "${osu_files[@]}"
 	do
@@ -315,31 +320,17 @@ if [ "${WINE_OSU}" = "true" ] ; then
 		fi
 	done
 
-	Info "Reverting winepulse..."
+	## If you ever need to compile a version that does NOT require all the reverts, please uncomment the lines
+	## below instead and comment out the main ones!
+	## 
+	## Info "Applying audio reverts.."
+	## rm -rf "${BUILD_DIR}"/wine/dlls/winepulse.drv
+	## mkdir -p "${BUILD_DIR}"/wine/dlls/winepulse.drv
+	## tar -xf "$curdir"/osu-misc/old-reverts/winepulse-513.tar -C "${BUILD_DIR}"/wine/dlls/
 
-	rm -f "${BUILD_DIR}"/wine/dlls/winepulse.drv/*
-	tar -xf "$curdir/osu-misc/winepulse-513.tar" -C "${BUILD_DIR}/wine/dlls/winepulse.drv"
-
-	# If this does not work, please just comment these lines yourself. You only need this for versions after 8.14!
-	if (( $(echo "$WINE_VERSION > 8.14" | bc -l) )); then
-
-		Info "Reverting mmdevapi..."
-		rm -f "${BUILD_DIR}"/wine/dlls/mmdevapi/*
-		tar -xf "$curdir/osu-misc/mmdevapi-revert.tar" -C "${BUILD_DIR}/wine/dlls/mmdevapi"
-
-		Info "Reverting winealsa..."
-		rm -f "${BUILD_DIR}"/wine/dlls/winealsa.drv/*
-		tar -xf "$curdir/osu-misc/winealsa-revert.tar" -C "${BUILD_DIR}/wine/dlls/winealsa.drv"
-
-		Info "Reverting winecoreaudio..."
-		rm -f "${BUILD_DIR}"/wine/dlls/winecoreaudio.drv/*
-		tar -xf "$curdir/osu-misc/winecoreaudio-revert.tar" -C "${BUILD_DIR}/wine/dlls/winecoreaudio.drv"
-
-		Info "Reverting wineoss..."
-		rm -f "${BUILD_DIR}"/wine/dlls/wineoss.drv/*
-		tar -xf "$curdir/osu-misc/wineoss-revert.tar" -C "${BUILD_DIR}/wine/dlls/wineoss.drv"
-
-	fi
+	Info "Applying audio reverts.."
+	rm -rf "${BUILD_DIR}"/wine/dlls/{winepulse.drv,mmdevapi,winealsa.drv,winecoreaudio.drv,wineoss.drv}
+	tar -xf "$curdir"/osu-misc/audio-revert.tar -C "${BUILD_DIR}"/wine/dlls/
 
 else
 	Info "Replacing Winepulse not needed, skipping.."
