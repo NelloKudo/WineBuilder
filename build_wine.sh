@@ -44,13 +44,16 @@ export WINE_OSU="true"
 #
 # This variable affects only vanilla and staging branches. Other branches
 # use their own versions.
-export WINE_VERSION="latest"
+export WINE_VERSION=""
 
 # Available branches: winello, vanilla, staging, staging-tkg, proton, wayland, custom, local
-export WINE_BRANCH="winello"
+export WINE_BRANCH=""
 
 # Custom path for Wine source
 export CUSTOM_WINE_SOURCE=""
+
+# Switch to also build only-x86 Wine (already bundled in 64-bit tho!)
+export BUILD_X86="false"
 
 # Available proton branches: proton_3.7, proton_3.16, proton_4.2, proton_4.11
 # proton_5.0, proton_5.13, experimental_5.13, proton_6.3, experimental_6.3
@@ -339,6 +342,7 @@ fi
 # Applying custom patches to Wine
 patches_dir=$curdir/custompatches
 cd wine
+rm $curdir/patches.log
 
 for i in "$patches_dir"/*patch; do
     [ ! -f "$i" ] && continue
@@ -394,11 +398,13 @@ export CXXFLAGS="${CFLAGS_X32}"
 export CROSSCFLAGS="${CROSSCFLAGS_X32}"
 export CROSSCXXFLAGS="${CROSSCFLAGS_X32}"
 
-mkdir "${BUILD_DIR}"/build32-tools
-cd "${BUILD_DIR}"/build32-tools
-PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-x86
-${BWRAP32} make -j$(nproc)
-${BWRAP32} make install
+if [ ${BUILD_X86} == "true" ]; then
+	mkdir "${BUILD_DIR}"/build32-tools
+	cd "${BUILD_DIR}"/build32-tools
+	PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-x86
+	${BWRAP32} make -j$(nproc)
+	${BWRAP32} make install
+fi
 
 export CFLAGS="${CFLAGS_X64}"
 export CXXFLAGS="${CFLAGS_X64}"
@@ -437,9 +443,11 @@ for build in wine-${BUILD_NAME}-x86 wine-${BUILD_NAME}-amd64; do
 
 			else
 
-				mv "${build}" "wine-osu-x86"
-				tar -Jcf "wine-osu-${WINE_VERSION}-x86".tar.xz wine-osu-x86
-				mv "wine-osu-${WINE_VERSION}-x86".tar.xz "${scriptdir}"
+				if [ ${BUILD_X86} == "true" ]; then
+					mv "${build}" "wine-osu-x86"
+					tar -Jcf "wine-osu-${WINE_VERSION}-x86".tar.xz wine-osu-x86
+					mv "wine-osu-${WINE_VERSION}-x86".tar.xz "${scriptdir}"
+				fi
 
 			fi
 		
