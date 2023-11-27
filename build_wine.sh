@@ -52,7 +52,7 @@ export WINE_BRANCH=""
 # Custom path for Wine source
 export CUSTOM_WINE_SOURCE=""
 
-# Switch to also build only-x86 Wine (already bundled in 64-bit tho!)
+# Switch to also package x86-Wine
 export BUILD_X86="false"
 
 # Available proton branches: proton_3.7, proton_3.16, proton_4.2, proton_4.11
@@ -398,13 +398,11 @@ export CXXFLAGS="${CFLAGS_X32}"
 export CROSSCFLAGS="${CROSSCFLAGS_X32}"
 export CROSSCXXFLAGS="${CROSSCFLAGS_X32}"
 
-if [ ${BUILD_X86} == "true" ]; then
-	mkdir "${BUILD_DIR}"/build32-tools
-	cd "${BUILD_DIR}"/build32-tools
-	PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-x86
-	${BWRAP32} make -j$(nproc)
-	${BWRAP32} make install
-fi
+mkdir "${BUILD_DIR}"/build32-tools
+cd "${BUILD_DIR}"/build32-tools
+PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-x86
+${BWRAP32} make -j$(nproc)
+${BWRAP32} make install
 
 export CFLAGS="${CFLAGS_X64}"
 export CXXFLAGS="${CFLAGS_X64}"
