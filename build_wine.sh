@@ -55,6 +55,14 @@ export CUSTOM_WINE_SOURCE=""
 # Switch to also package x86-Wine
 export BUILD_X86="false"
 
+# Switch to use old revert method for wine-osu (ex. Wine 8.0 or previous)
+# This only reverts winepulse.drv!!
+export OSU_OLD_REVERT="false"
+
+# Adds Wayland support to Wine builds. Should work by default on latest builds, 
+# probably needs to be set on false on custom/older ones.
+export ENABLE_WAYLAND="true"
+
 # Available proton branches: proton_3.7, proton_3.16, proton_4.2, proton_4.11
 # proton_5.0, proton_5.13, experimental_5.13, proton_6.3, experimental_6.3
 # proton_7.0, experimental_7.0
@@ -70,13 +78,7 @@ export STAGING_VERSION=""
 # patchset, but apply all other patches, then set this variable to
 # "--all -W ntdll-NtAlertThreadByThreadId"
 # Leave empty to apply all Staging patches
-export STAGING_ARGS="" 
-
-# Use the ones below to fix alt-tab issues for Wine 8
-#export STAGING_ARGS="--all -W winex11-_NET_ACTIVE_WINDOW -W user32-alttab-focus -W winex11-WM_WINDOWPOSCHANGING" 
-
-# Use the ones below if you have issues with applying Winepulse patches
-#export STAGING_ARGS="--all -W winepulse-PulseAudio_Support -W winepulse-aux_channels"
+export STAGING_ARGS=""
 
 # Set this to a path to your Wine source code (for example, /home/username/wine-custom-src).
 # This is useful if you already have the Wine source code somewhere on your
@@ -103,6 +105,12 @@ export DO_NOT_COMPILE="false"
 export USE_CCACHE="true"
 
 export WINE_BUILD_OPTIONS="--without-ldap --without-oss --disable-winemenubuilder --disable-win16 --disable-tests"
+
+# Checking for Wayland...
+if [ "${ENABLE_WAYLAND}" = "true" ] ; then
+	Info "Adding Wayland support.."
+	export WINE_BUILD_OPTIONS="${WINE_BUILD_OPTIONS} --with-wayland"
+fi
 
 # A temporary directory where the Wine source code will be stored.
 # Do not set this variable to an existing non-empty directory!
@@ -326,18 +334,18 @@ if [ "${WINE_OSU}" = "true" ] ; then
 		fi
 	done
 
-	## If you ever need to compile a version that does NOT require all the reverts, please uncomment the lines
-	## below instead and comment out the main ones!
-	## 
-	## Info "Applying audio reverts.."
-	## rm -rf "${BUILD_DIR}"/wine/dlls/winepulse.drv
-	## mkdir -p "${BUILD_DIR}"/wine/dlls/winepulse.drv
-	## tar -xf "$curdir"/osu-misc/old-reverts/winepulse-513.tar -C "${BUILD_DIR}"/wine/dlls/
-
-	Info "Applying audio reverts.."
-	rm -rf "${BUILD_DIR}"/wine/dlls/{winepulse.drv,mmdevapi,winealsa.drv,winecoreaudio.drv,wineoss.drv}
-	tar -xf "$curdir"/osu-misc/audio-revert.tar -C "${BUILD_DIR}"/wine/dlls/
-
+	if [ "${OSU_OLD_REVERT}" = "true" ] ; then
+		Info "Applying audio reverts.. (old version)"
+		rm -rf "${BUILD_DIR}"/wine/dlls/winepulse.drv
+		mkdir -p "${BUILD_DIR}"/wine/dlls/winepulse.drv
+		tar -xf "$curdir"/osu-misc/old-reverts/winepulse-513.tar -C "${BUILD_DIR}"/wine/dlls/winepulse.drv
+	
+	else
+		Info "Applying audio reverts.."
+		rm -rf "${BUILD_DIR}"/wine/dlls/{winepulse.drv,mmdevapi,winealsa.drv,winecoreaudio.drv,wineoss.drv}
+		tar -xf "$curdir"/osu-misc/audio-revert.tar -C "${BUILD_DIR}"/wine/dlls/
+	fi
+	
 else
 	Info "Replacing Winepulse not needed, skipping.."
 fi
@@ -403,7 +411,7 @@ export CROSSCXXFLAGS="${CROSSCFLAGS_X32}"
 
 mkdir "${BUILD_DIR}"/build32-tools
 cd "${BUILD_DIR}"/build32-tools
-PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-x86
+PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/i386-linux-gnu/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-x86
 ${BWRAP32} make -j$(nproc)
 ${BWRAP32} make install
 
@@ -414,7 +422,7 @@ export CROSSCXXFLAGS="${CROSSCFLAGS_X64}"
 
 mkdir "${BUILD_DIR}"/build32
 cd "${BUILD_DIR}"/build32
-PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure --with-wine64="${BUILD_DIR}"/build64 --with-wine-tools="${BUILD_DIR}"/build32-tools ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-amd64
+PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/i386-linux-gnu/pkgconfig ${BWRAP32} "${BUILD_DIR}"/wine/configure --with-wine64="${BUILD_DIR}"/build64 --with-wine-tools="${BUILD_DIR}"/build32-tools ${WINE_BUILD_OPTIONS} --prefix "${BUILD_DIR}"/wine-${BUILD_NAME}-amd64
 ${BWRAP32} make -j$(nproc)
 ${BWRAP32} make install
 
