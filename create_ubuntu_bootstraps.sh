@@ -107,7 +107,7 @@ apt-get -y clean
 apt-get -y autoclean
 pip3 install meson
 pip3 install ninja
-export PATH="/usr/local/bin:${PATH}"
+export PATH="/usr/local/bin:/bin:/sbin:/usr/bin:/usr/sbin"
 mkdir /opt/build_libs
 cd /opt/build_libs
 wget -O sdl.tar.gz https://www.libsdl.org/release/SDL2-${sdl2_version}.tar.gz
