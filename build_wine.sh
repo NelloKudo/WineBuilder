@@ -363,6 +363,7 @@ for i in "$patches_dir"/*patch; do
 
 dlls/winevulkan/make_vulkan
 tools/make_requests
+tools/make_specfiles
 autoreconf -fiv
 
 cd "${BUILD_DIR}"
