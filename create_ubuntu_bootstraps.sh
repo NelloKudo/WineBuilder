@@ -54,7 +54,7 @@ prepare_chroot () {
 	cp /etc/resolv.conf "${CHROOT_PATH}"/etc/resolv.conf
 
 	echo "Chrooting into ${CHROOT_PATH}"
-	chroot "${CHROOT_PATH}" /usr/bin/env LANG=en_US.UTF-8 TERM=xterm PATH="/bin:/sbin:/usr/bin:/usr/sbin" /opt/prepare_chroot.sh
+	chroot "${CHROOT_PATH}" /usr/bin/env LANG=en_US.UTF-8 TERM=xterm PATH="/bin:/sbin:/usr/bin:/usr/local/bin:/usr/sbin" /opt/prepare_chroot.sh
 
 	echo "Unmount chroot directories"
 	umount -l "${CHROOT_PATH}"
@@ -117,6 +117,13 @@ wget -O vulkan-headers.tar.gz https://github.com/KhronosGroup/Vulkan-Headers/arc
 wget -O spirv-headers.tar.gz https://github.com/KhronosGroup/SPIRV-Headers/archive/${spirv_headers_version}.tar.gz
 wget -O libpcap.tar.gz https://www.tcpdump.org/release/libpcap-${libpcap_version}.tar.gz
 wget -O libxkbcommon.tar.xz https://xkbcommon.org/download/libxkbcommon-${libxkbcommon_version}.tar.xz
+wget -O nasm-2.15.tar.xz https://www.nasm.us/pub/nasm/releasebuilds/2.15/nasm-2.15.tar.xz
+tar xvf nasm-2.15.tar.xz
+cd nasm-2.15
+sh configure
+make -j$(nproc)
+make install
+cd ..
 if [ -d /usr/lib/i386-linux-gnu ]; then wget -O wine.deb https://dl.winehq.org/wine-builds/ubuntu/dists/bionic/main/binary-i386/wine-stable_4.0.3~bionic_i386.deb; fi
 if [ -d /usr/lib/x86_64-linux-gnu ]; then wget -O wine.deb https://dl.winehq.org/wine-builds/ubuntu/dists/bionic/main/binary-amd64/wine-stable_4.0.3~bionic_amd64.deb; fi
 git clone git://source.winehq.org/git/vkd3d.git
