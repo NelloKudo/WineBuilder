@@ -6,7 +6,7 @@ You can find binaries built from this repo at [osu-winello](https://github.com/N
 
 ## Builds description
 
-The binaries built from this script use the same configuration as the [original repo](https://github.com/Kron4ek/Wine-Builds), therefore creating two **Ubuntu bootstraps** and building Wine using those. That means providing support for a wide range of distros, as long as **GLIBC>=2.27**.
+The binaries built from this script use a similar configuration as the [original repo](https://github.com/Kron4ek/Wine-Builds), therefore creating an **Ubuntu 20.04 bootstrap** and building Wine using it. That means providing support for a wide range of distros, as long as **GLIBC>=2.31**.
 
 **Custom patches** can be applied by simply copying those into the `custompatches` folder of the repo, the script will handle the rest itself.
 
