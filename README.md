@@ -20,7 +20,7 @@ Use your package manager to install the following dependencies: `git`, `autoconf
 
 **Ubuntu/Debian:** `sudo apt install -y git autoconf bubblewrap perl debootstrap wget ccache bc`
 
-**Arch Linux:** `sudo pacman -Sy --needed  --noconfirm git autoconf bubblewrap perl debootstrap wget ccache bc`
+**Arch Linux:** `sudo pacman -Sy --needed  --noconfirm git autoconf bubblewrap perl debootstrap wget ccache bc ubuntu-keyring`
 
 **Fedora:** `sudo dnf install -y git autoconf bubblewrap perl debootstrap wget ccache bc`
 
