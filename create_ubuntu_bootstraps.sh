@@ -116,6 +116,8 @@ pip3 install meson
 pip3 install ninja
 export PATH="/usr/local/bin:/bin:/sbin:/usr/bin:/usr/sbin"
 
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 90 --slave /usr/bin/g++ g++ /usr/bin/g++-13 --slave /usr/bin/gcov gcov /usr/bin/gcov-13
+
 # Installing llvm-mingw...
 if ! [ -d /usr/local/llvm-mingw ]; then
 	wget -O llvm-mingw.tar.xz https://github.com/mstorsjo/llvm-mingw/releases/download/20240619/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64.tar.xz
