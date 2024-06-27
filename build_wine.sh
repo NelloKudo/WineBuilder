@@ -65,7 +65,7 @@ export USE_CLANG="true"
 
 BUILD_DIR="${scriptdir}"/build_wine
 
-# Setting this to true will build wine inside of the chroot 
+# Setting this to true will build wine in /tmp/
 # and then move it over to your specified build directory, for sanitized names.
 # Otherwise, it just builds inside of BUILD_DIR.
 SANITIZED_BUILD="true"
