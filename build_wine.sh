@@ -62,7 +62,13 @@ export USE_CLANG="true"
 # A temporary directory where the Wine source code will be stored.
 # Do not set this variable to an existing non-empty directory!
 # This directory is removed and recreated on each script run.
-export BUILD_DIR="${scriptdir}"/build_wine
+
+BUILD_DIR="${scriptdir}"/build_wine
+
+# Setting this to true will build wine inside of the chroot 
+# and then move it over to your specified build directory, for sanitized names.
+# Otherwise, it just builds inside of BUILD_DIR.
+SANITIZED_BUILD="true"
 
 # Wine version to compile.
 # You can set it to "latest" to compile the latest available version. (not for winello)
@@ -135,10 +141,24 @@ export DO_NOT_COMPILE="false"
 # Make sure that ccache is installed before enabling this.
 export USE_CCACHE="true"
 
-BUILD_OUT_DIR=wine-"${WINE_BRANCH}"-build
+## ------------------------------------------------------------
+## 						BUILD SETUP
+## ------------------------------------------------------------
+
+BUILD_OUT_TMP_DIR=wine-"${WINE_BRANCH}"-build
+
+if [ "${SANITIZED_BUILD}" = "true" ]; then
+	Info "Using experimental sanitized build."
+
+	_SANITIZED_BUILD_DIR=$(basename "${BUILD_DIR}")
+	old_BUILD_DIR="${BUILD_DIR}"
+	BUILD_DIR="/tmp/${_SANITIZED_BUILD_DIR}"
+
+	mkdir -p "${BUILD_DIR}" || Error "Error setting up sanitized build directory. Do you not have a /tmp/ directory for some reason?"
+fi
 
 WINE_BUILD_OPTIONS=(
-	--prefix="${BUILD_DIR}"/"${BUILD_OUT_DIR}"
+	--prefix="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"
 	--disable-tests
 	--with-x
 	--with-gstreamer
@@ -152,12 +172,12 @@ WINE_BUILD_OPTIONS=(
 # Options appended only to the lib64 portion of the build
 WINE_64_BUILD_OPTIONS=(
 	--enable-win64
-	--libdir="${BUILD_DIR}"/"${BUILD_OUT_DIR}"/lib64
+	--libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib64
 )
 
 # Options appended only to the lib32 portion of the build
 WINE_32_BUILD_OPTIONS=(
-	--libdir="${BUILD_DIR}"/"${BUILD_OUT_DIR}"/lib
+	--libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib
     --with-wine64="${BUILD_DIR}"/build64
 )
 
@@ -175,8 +195,6 @@ fi
 _distro=$(grep "${scriptdir}"/create_ubuntu_bootstraps.sh -e "CHROOT_DISTRO=" | cut -f2 -d'"')
 export BOOTSTRAP_PATH=/opt/chroots/"${_distro}"_chroot
 
-export LLVM_MINGW_PATH="/usr/local/llvm-mingw"
-
 # Alias for bwrap setup
 _bwrap () {
     bwrap --ro-bind "${BOOTSTRAP_PATH}" / --dev /dev --ro-bind /sys /sys \
@@ -187,7 +205,8 @@ _bwrap () {
 		  --setenv PATH "/usr/local/llvm-mingw/bin:/bin:/sbin:/usr/bin:/usr/sbin" \
 		  --setenv LC_ALL en_US.UTF-8 \
 		  --setenv LANGUAGE en_US.UTF-8 \
-			"$@"
+		  "$@"
+			
 }
 
 if [ ! -d "${BOOTSTRAP_PATH}" ] ; then
@@ -199,6 +218,8 @@ fi
 ## ------------------------------------------------------------
 
 ## Setting flags for compilation..
+export LLVM_MINGW_PATH="/usr/local/llvm-mingw"
+
 export CC="gcc"
 export CXX="g++"
 
@@ -307,6 +328,7 @@ _staging_patcher() {
 	else
 		_bwrap "${staging_patcher[@]}" --all
 	fi || Error "Wine-Staging patches were not applied correctly!"
+
 }
 
 ## ------------------------------------------------------------
@@ -558,6 +580,9 @@ if ! command -v bwrap 1>/dev/null; then
 	exit 1
 fi
 
+# Setup reproducible build and ensure ccache works
+export SOURCE_DATE_EPOCH=0
+
 export PKG_CONFIG_LIBDIR=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:${LLVM_MINGW_PATH}/x86_64-w64-mingw32/lib/pkgconfig
 export PKG_CONFIG_PATH=$PKG_CONFIG_LIBDIR
 export x86_64_CC="${CROSSCC_X64}"
@@ -591,6 +616,8 @@ _bwrap "${BUILD_DIR}"/wine/configure \
 
 _bwrap make -j$(($(nproc) + 1)) || Error "Wine 32-bit build failed, check logs"
 
+unset SOURCE_DATE_EPOCH
+
 Info "Compilation complete"
 
 cd "${BUILD_DIR}"
@@ -601,30 +628,40 @@ if [ -d "$BUILD_DIR" ]; then
 	Info "Packaging Wine-32..."
 	cd "${BUILD_DIR}"/build32
 	_bwrap make -j$(($(nproc) + 1)) \
-	prefix="${BUILD_DIR}"/"${BUILD_OUT_DIR}" \
-	libdir="${BUILD_DIR}"/"${BUILD_OUT_DIR}"/lib \
-	dlldir="${BUILD_DIR}"/"${BUILD_OUT_DIR}"/lib/wine install
+	prefix="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}" \
+	libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib \
+	dlldir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib/wine install
 
 	Info "Packaging Wine-64..."
 	cd "${BUILD_DIR}"/build64
 	# clang doesn't like to build static lib64
 	_bwrap make -j$(($(nproc) + 1)) "$( if [ "$USE_CLANG" = "true" ]; then echo CC=gcc ; fi )" \
-	prefix="${BUILD_DIR}"/"${BUILD_OUT_DIR}" \
-	libdir="${BUILD_DIR}"/"${BUILD_OUT_DIR}"/lib64 \
-	dlldir="${BUILD_DIR}"/"${BUILD_OUT_DIR}"/lib64/wine install
+	prefix="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}" \
+	libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib64 \
+	dlldir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib64/wine install
 
 	Info "Stripping unneeded symbols from libraries..."
-    find "${BUILD_DIR}"/"${BUILD_OUT_DIR}"/lib{,64} \
+    find "${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib{,64} \
       -type f '(' -iname '*.a' -or -iname '*.dll' -or -iname '*.so' -or -iname '*.sys' -or -iname '*.drv' -or -iname '*.exe' ')' \
       -print0 \
       | xargs -0 strip --strip-unneeded &>/dev/null || true
 
 fi
 
+if [ "${SANITIZED_BUILD}" = "true" ]; then
+	Info "Moving sanitized build to your specified location."
+	rm -rf "${old_BUILD_DIR}" || true
+	mkdir "${old_BUILD_DIR}" || Error "Couldn't make a directory where you wanted to."
+	mv "${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}" "${old_BUILD_DIR}"/ || Error "Couldn't copy the sanitized build to your final build location."
+	rm -rf "${BUILD_DIR}"/build{32,64} || true
+
+	BUILD_DIR="${old_BUILD_DIR}"
+fi
+
 cd "${BUILD_DIR}"
 Info "Creating and compressing archives..."
 
-build="${BUILD_OUT_DIR}"
+build="${BUILD_OUT_TMP_DIR}"
 if [ -d "${build}" ]; then
 	rm -rf "${build}"/share/applications "${build}"/share/man
 
@@ -641,11 +678,16 @@ if [ -d "${build}" ]; then
 
 		tar -Jcf "wine-osu-${BUILD_NAME}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64".tar.xz  --numeric-owner --owner=0 --group=0 --null  wine-osu
 		mv "wine-osu-${BUILD_NAME}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64".tar.xz "${scriptdir}"
+
 	else
 
 		tar -Jcf "${build}".tar.xz "${build}"
 		mv "${build}".tar.xz "${scriptdir}"
 
+	fi
+	if [ "${SANITIZED_BUILD}" = "true" ]; then
+		Info "Sanitized build: Removing uncompressed local build directory."
+		rm -rf "${BUILD_DIR}"
 	fi
 fi
 
