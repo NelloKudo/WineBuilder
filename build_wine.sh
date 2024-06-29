@@ -106,10 +106,6 @@ export ENABLE_WAYLAND="true"
 # Leave empty to use the default branch.
 export PROTON_BRANCH="proton_7.0"
 
-# Sometimes Wine and Staging versions don't match (for example, 5.15.2).
-# Leave this empty to use Staging version that matches the Wine version.
-export STAGING_VERSION=""
-
 # Specify custom arguments for the Staging's patchinstall.sh script.
 # For example, if you want to disable ntdll-NtAlertThreadByThreadId
 # patchset, but apply all other patches, then set this variable to
@@ -434,7 +430,10 @@ elif [ "$WINE_BRANCH" = "winello-git" ]; then
 	
 	cd "${BUILD_DIR}"/wine
 
-	if [ -n "${WINE_VERSION}" ]; then git reset --hard "${WINE_VERSION}" || Error "Failed to change to your selected WINE_VERSION."; fi
+	if [ -n "${WINE_VERSION}" ]; then
+		Info "Setting wine commit to ${WINE_VERSION}, was at $(git rev-parse HEAD)"
+		git reset --hard "${WINE_VERSION}" || Error "Failed to change to your selected WINE_VERSION."
+	fi
 
 	if [ "$(git rev-parse HEAD)" = "09a6d0f2913b064e09ed0bdc27b7bbc17a5fb0fc" ]; then
 		Info "Adding staging hotfix to remove the 'odbc-remove-unixodbc' patchset"
@@ -458,7 +457,10 @@ elif [ "$WINE_BRANCH" = "winello-git" ]; then
 
 	cd "${BUILD_DIR}"/wine-staging-"${WINE_VERSION}"
 
-	if [ -n "${STAGING_VERSION}" ]; then git reset --hard "${STAGING_VERSION}" || Error "Failed to change to your selected STAGING_VERSION."; fi
+	if [ -n "${STAGING_VERSION}" ]; then
+		Info "Setting wine-staging commit to ${STAGING_VERSION}, was at $(git rev-parse HEAD)"
+		git reset --hard "${STAGING_VERSION}" || Error "Failed to change to your selected STAGING_VERSION."
+	fi
 
 	cd "${BUILD_DIR}"
 
