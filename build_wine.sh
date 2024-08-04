@@ -76,9 +76,9 @@ SANITIZED_BUILD="true"
 # This variable affects only winello-git, vanilla, and staging branches. Other branches
 # use their own versions.
 # "winello-git" takes tag names or commit hashes (e.g. wine-9.11)
-export WINE_VERSION="09a6d0f2913b064e09ed0bdc27b7bbc17a5fb0fc"
+export WINE_VERSION="wine-9.14"
 # This only applies to winello-git branches. Takes tag names or commit hashes (e.g. v9.11)
-export STAGING_VERSION="7fc08a960bcefc1e06a6d5587079648fdde9112f"
+export STAGING_VERSION="v9.14"
 
 # Available branches: winello-git, winello, vanilla, staging, staging-tkg, proton, wayland, custom, local
 export WINE_BRANCH="winello-git"
@@ -88,7 +88,7 @@ export RELEASE_VERSION="2"
 
 # Name for patchset you want to apply (e.g. protonGE-9-4-osu-patchset from osu-misc/patches/)
 # Leave empty if you have loose patches in custompatches/
-PATCHSET="9.11-staging-2-patchset"
+PATCHSET="9.14-patchset"
 # Custom path for Wine source
 export CUSTOM_WINE_SOURCE=""
 
