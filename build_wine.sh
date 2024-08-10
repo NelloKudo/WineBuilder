@@ -76,9 +76,9 @@ SANITIZED_BUILD="true"
 # This variable affects only winello-git, vanilla, and staging branches. Other branches
 # use their own versions.
 # "winello-git" takes tag names or commit hashes (e.g. wine-9.11)
-export WINE_VERSION="wine-9.14"
+export WINE_VERSION="9c69ccf8ef2995548ef5fee9d0b68f68dec5dd62"
 # This only applies to winello-git branches. Takes tag names or commit hashes (e.g. v9.11)
-export STAGING_VERSION="v9.14"
+export STAGING_VERSION="1143543d4a4c31879b7fb376b6ca0d3e63f97984"
 
 # Available branches: winello-git, winello, vanilla, staging, staging-tkg, proton, wayland, custom, local
 export WINE_BRANCH="winello-git"
@@ -88,9 +88,12 @@ export RELEASE_VERSION="2"
 
 # Name for patchset you want to apply (e.g. protonGE-9-4-osu-patchset from osu-misc/patches/)
 # Leave empty if you have loose patches in custompatches/
-PATCHSET="9.14-patchset"
+PATCHSET="9.14-2-patchset"
 # Custom path for Wine source
 export CUSTOM_WINE_SOURCE=""
+
+# Support for wow64 builds
+export USE_WOW64="true"
 
 # Switch to use old revert method for wine-osu (ex. Wine 8.0 or previous)
 # This only reverts winepulse.drv!!
@@ -111,7 +114,7 @@ export PROTON_BRANCH="proton_7.0"
 # patchset, but apply all other patches, then set this variable to
 # "--all -W ntdll-NtAlertThreadByThreadId"
 # Leave empty to apply all Staging patches
-export STAGING_ARGS="--all"
+export STAGING_ARGS="--all -W odbc32-fixes"
 
 # Set this to a path to your Wine source code (for example, /home/username/wine-custom-src).
 # This is useful if you already have the Wine source code somewhere on your
@@ -166,10 +169,17 @@ WINE_BUILD_OPTIONS=(
 )
 
 # Options appended only to the lib64 portion of the build
-WINE_64_BUILD_OPTIONS=(
-	--enable-win64
-	--libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib64
-)
+if [ "${USE_WOW64}" = "true" ]; then
+	WINE_64_BUILD_OPTIONS=(
+		--enable-archs="x86_64,i386"
+		--libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib64
+	)
+else
+	WINE_64_BUILD_OPTIONS=(
+		--enable-win64
+		--libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib64
+	)
+fi
 
 # Options appended only to the lib32 portion of the build
 WINE_32_BUILD_OPTIONS=(
@@ -599,25 +609,29 @@ _bwrap "${BUILD_DIR}"/wine/configure \
 
 _bwrap make -j$(($(nproc) + 1)) || Error "Wine 64-bit build failed, check logs"
 
-export PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/i386-linux-gnu/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:${LLVM_MINGW_PATH}/i686-w64-mingw32/lib/pkgconfig
-export PKG_CONFIG_PATH=$PKG_CONFIG_LIBDIR
-export i386_CC="${CROSSCC_X32}"
-export CROSSCC="${CROSSCC_X32}"
 
-if [ "$USE_CLANG" = "true" ]; then
-	# fsync doesn't compile (ntdll.so) on i386 due to undefined atomic ops otherwise
-	export I386_LIBS="-latomic"
+if ! [ "${USE_WOW64}" = "true" ]; then
+
+	export PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/i386-linux-gnu/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:${LLVM_MINGW_PATH}/i686-w64-mingw32/lib/pkgconfig
+	export PKG_CONFIG_PATH=$PKG_CONFIG_LIBDIR
+	export i386_CC="${CROSSCC_X32}"
+	export CROSSCC="${CROSSCC_X32}"
+
+	if [ "$USE_CLANG" = "true" ]; then
+		# fsync doesn't compile (ntdll.so) on i386 due to undefined atomic ops otherwise
+		export I386_LIBS="-latomic"
+	fi
+
+	rm -rf "${BUILD_DIR}"/build32 || true
+	mkdir "${BUILD_DIR}"/build32
+	cd "${BUILD_DIR}"/build32
+	_bwrap "${BUILD_DIR}"/wine/configure \
+				"${WINE_BUILD_OPTIONS[@]}" \
+				"${WINE_32_BUILD_OPTIONS[@]}"
+
+	_bwrap make -j$(($(nproc) + 1)) || Error "Wine 32-bit build failed, check logs"
+
 fi
-
-rm -rf "${BUILD_DIR}"/build32 || true
-mkdir "${BUILD_DIR}"/build32
-cd "${BUILD_DIR}"/build32
-_bwrap "${BUILD_DIR}"/wine/configure \
-			"${WINE_BUILD_OPTIONS[@]}" \
-			"${WINE_32_BUILD_OPTIONS[@]}"
-
-_bwrap make -j$(($(nproc) + 1)) || Error "Wine 32-bit build failed, check logs"
-
 unset SOURCE_DATE_EPOCH
 
 Info "Compilation complete"
@@ -627,12 +641,14 @@ export XZ_OPT="-9 -T0 "
 
 if [ -d "$BUILD_DIR" ]; then
 
-	Info "Packaging Wine-32..."
-	cd "${BUILD_DIR}"/build32
-	_bwrap make -j$(($(nproc) + 1)) \
-	prefix="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}" \
-	libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib \
-	dlldir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib/wine install
+	if ! [ "${USE_WOW64}" = "true" ]; then
+		Info "Packaging Wine-32..."
+		cd "${BUILD_DIR}"/build32
+		_bwrap make -j$(($(nproc) + 1)) \
+		prefix="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}" \
+		libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib \
+		dlldir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib/wine install
+	fi
 
 	Info "Packaging Wine-64..."
 	cd "${BUILD_DIR}"/build64
