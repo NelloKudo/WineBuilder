@@ -76,19 +76,23 @@ SANITIZED_BUILD="true"
 # This variable affects only winello-git, vanilla, and staging branches. Other branches
 # use their own versions.
 # "winello-git" takes tag names or commit hashes (e.g. wine-9.11)
-export WINE_VERSION="9c69ccf8ef2995548ef5fee9d0b68f68dec5dd62"
+export WINE_VERSION="wine-9.15"
 # This only applies to winello-git branches. Takes tag names or commit hashes (e.g. v9.11)
-export STAGING_VERSION="1143543d4a4c31879b7fb376b6ca0d3e63f97984"
+export STAGING_VERSION="v9.15"
 
 # Available branches: winello-git, winello, vanilla, staging, staging-tkg, proton, wayland, custom, local
 export WINE_BRANCH="winello-git"
 
 # Optional extra release identifier to be added to the package, otherwise will be 1
-export RELEASE_VERSION="2"
+export RELEASE_VERSION="1"
 
 # Name for patchset you want to apply (e.g. protonGE-9-4-osu-patchset from osu-misc/patches/)
+# Can be set to "tag:<tag_name_here>" to use a tag from the https://github.com/whrvt/wine-osu-patches repo
+# WARNING: if a repo tag is specified, the WINE_VERSION and STAGING_VERSION set previously will be overridden by
+# the wine-commit and staging-commit from the patch repo
+#
 # Leave empty if you have loose patches in custompatches/
-PATCHSET="9.14-2-patchset"
+PATCHSET="tag:winello-08-11-2024-ad8b2870-92374493"
 # Custom path for Wine source
 export CUSTOM_WINE_SOURCE=""
 
@@ -114,7 +118,7 @@ export PROTON_BRANCH="proton_7.0"
 # patchset, but apply all other patches, then set this variable to
 # "--all -W ntdll-NtAlertThreadByThreadId"
 # Leave empty to apply all Staging patches
-export STAGING_ARGS="--all -W odbc32-fixes"
+export STAGING_ARGS="--all"
 
 # Set this to a path to your Wine source code (for example, /home/username/wine-custom-src).
 # This is useful if you already have the Wine source code somewhere on your
@@ -272,8 +276,7 @@ if [ "$USE_LLVM" = "true" ] && [ "$WINE_OSU" = "true" ]; then
 	export CROSSCC_X64="x86_64-w64-mingw32-clang"
 	export CROSSCC="x86_64-w64-mingw32-clang"
 
-	# feel free to do this a better way :)
-	__llvm_ver="$(basename "$(find "${BOOTSTRAP_PATH}"/"${LLVM_MINGW_PATH}"/lib/clang/ -mindepth 1 -maxdepth 1)" )" || \
+	__llvm_ver="$(env ls -1 "${BOOTSTRAP_PATH}"/"${LLVM_MINGW_PATH}"/lib/clang/)" || \
 		Error "llvm-mingw didn't have a valid version in lib/clang/_version_"
 
 	_CROSS_FLAGS="${_CROSS_FLAGS} -L${LLVM_MINGW_PATH}/lib -I${LLVM_MINGW_PATH}/include -I${LLVM_MINGW_PATH}/lib/clang/$__llvm_ver/include -I${LLVM_MINGW_PATH}/generic-w64-mingw32/include -L${LLVM_MINGW_PATH}/x86_64-w64-mingw32/lib -L${LLVM_MINGW_PATH}/i686-w64-mingw32/lib -L${LLVM_MINGW_PATH}/lib/clang/$__llvm_ver/lib/windows"
@@ -336,6 +339,28 @@ _staging_patcher() {
 	fi || Error "Wine-Staging patches were not applied correctly!"
 
 }
+
+## ------------------------------------------------------------
+
+## Patch source setup
+patches_dir="${scriptdir}"/custompatches
+if [ -n "${PATCHSET}" ]; then
+	rm -rf "${scriptdir}"/patchset-current || true
+	if [ "${PATCHSET:0:4}" = "tag:" ]; then
+		_git_tag="${PATCHSET:4}"
+
+		git config advice.detachedHead false
+		git clone --depth 1 --branch "${_git_tag}" https://github.com/whrvt/wine-osu-patches.git "${scriptdir}"/patchset-current
+
+		WINE_VERSION="$(cat "${scriptdir}"/patchset-current/wine-commit)"
+		STAGING_VERSION="$(cat "${scriptdir}"/patchset-current/staging-commit)"
+	else
+		mkdir "${scriptdir}"/patchset-current
+		tar xf "$(find "${scriptdir}"/osu-misc/ -type f -iregex ".*${PATCHSET}.*")" -C "${scriptdir}"/patchset-current || Error "The patchset you specified was invalid."
+	fi
+
+	patches_dir="${scriptdir}"/patchset-current
+fi
 
 ## ------------------------------------------------------------
 
@@ -448,6 +473,9 @@ elif [ "$WINE_BRANCH" = "winello-git" ]; then
 	if [ "$(git rev-parse HEAD)" = "09a6d0f2913b064e09ed0bdc27b7bbc17a5fb0fc" ]; then
 		Info "Adding staging hotfix to remove the 'odbc-remove-unixodbc' patchset"
 		STAGING_ARGS+=" -W odbc-remove-unixodbc"
+	elif [ "$(git rev-parse HEAD)" = "9c69ccf8ef2995548ef5fee9d0b68f68dec5dd62" ]; then
+		Info "Adding staging hotfix to remove the 'odbc32-fixes' patchset"
+		STAGING_ARGS+=" -W odbc32-fixes"
 	fi
 
 	WINE_VERSION=$(git describe --tags --abbrev=0 | cut -f2 -d'-')
@@ -543,15 +571,6 @@ fi
 ## ------------------------------------------------------------
 
 # Applying custom patches to Wine
-patches_dir="${scriptdir}"/custompatches
-if [ -n "${PATCHSET}" ]; then
-	rm -rf "${scriptdir}"/patchset-current || true
-	mkdir "${scriptdir}"/patchset-current
-	tar xf "$(find "${scriptdir}"/osu-misc/ -type f -iregex ".*${PATCHSET}.*")" -C "${scriptdir}"/patchset-current || Error "The patchset you specified was invalid."
-
-	patches_dir="${scriptdir}"/patchset-current
-fi
-
 cd "${BUILD_DIR}"/wine
 rm "${scriptdir}"/patches.log || true
 
