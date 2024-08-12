@@ -87,12 +87,16 @@ export WINE_BRANCH="winello-git"
 export RELEASE_VERSION="1"
 
 # Name for patchset you want to apply (e.g. protonGE-9-4-osu-patchset from osu-misc/patches/)
-# Can be set to "tag:<tag_name_here>" to use a tag from the https://github.com/whrvt/wine-osu-patches repo
+# Can be set to "tag:<tag_name_here>" to get patches by a tag from the PATCHSET_REPO
 # WARNING: if a repo tag is specified, the WINE_VERSION and STAGING_VERSION set previously will be overridden by
 # the wine-commit and staging-commit from the patch repo
 #
 # Leave empty if you have loose patches in custompatches/
 PATCHSET="tag:winello-08-11-2024-ad8b2870-92374493"
+
+# The repository to pull patches from if PATCHSET="tag:<tag_name_here>" is specified
+PATCHSET_REPO="https://github.com/whrvt/wine-osu-patches.git"
+
 # Custom path for Wine source
 export CUSTOM_WINE_SOURCE=""
 
@@ -343,23 +347,26 @@ _staging_patcher() {
 ## ------------------------------------------------------------
 
 ## Patch source setup
-patches_dir="${scriptdir}"/custompatches
 if [ -n "${PATCHSET}" ]; then
-	rm -rf "${scriptdir}"/patchset-current || true
+	patches_dir="${scriptdir}"/patchset-current
+
+	rm -rf "${patches_dir}" || true
+
 	if [ "${PATCHSET:0:4}" = "tag:" ]; then
 		_git_tag="${PATCHSET:4}"
 
 		git config advice.detachedHead false
-		git clone --depth 1 --branch "${_git_tag}" https://github.com/whrvt/wine-osu-patches.git "${scriptdir}"/patchset-current
+		# Clones to "${scriptdir}"/patchset-current
+		git clone --depth 1 --branch "${_git_tag}" "${PATCHSET_REPO}" "${patches_dir}" || Error "The patchset tag or repository URL you specified was invalid."
 
-		WINE_VERSION="$(cat "${scriptdir}"/patchset-current/wine-commit)"
-		STAGING_VERSION="$(cat "${scriptdir}"/patchset-current/staging-commit)"
+		WINE_VERSION="$(cat "${patches_dir}"/wine-commit)"
+		STAGING_VERSION="$(cat "${patches_dir}"/staging-commit)"
 	else
-		mkdir "${scriptdir}"/patchset-current
-		tar xf "$(find "${scriptdir}"/osu-misc/ -type f -iregex ".*${PATCHSET}.*")" -C "${scriptdir}"/patchset-current || Error "The patchset you specified was invalid."
+		mkdir "${patches_dir}"
+		tar xf "$(find "${scriptdir}"/osu-misc/ -type f -iregex ".*${PATCHSET}.*")" -C "${patches_dir}" || Error "The patchset you specified was invalid."
 	fi
-
-	patches_dir="${scriptdir}"/patchset-current
+else # Use loose patches if PATCHSET isn't specified
+	patches_dir="${scriptdir}"/custompatches
 fi
 
 ## ------------------------------------------------------------
