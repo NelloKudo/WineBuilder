@@ -76,9 +76,14 @@ SANITIZED_BUILD="true"
 # This variable affects only winello-git, vanilla, and staging branches. Other branches
 # use their own versions.
 # "winello-git" takes tag names or commit hashes (e.g. wine-9.11)
-export WINE_VERSION="wine-9.15"
+#
+# If the remote repo method is used for a patchset, these are overridden by
+# the wine-commit and staging-commit from the patch repo
+# So, they can remain empty, and will automatically reflect updates to the patchset repo
+export WINE_VERSION=""
+
 # This only applies to winello-git branches. Takes tag names or commit hashes (e.g. v9.11)
-export STAGING_VERSION="v9.15"
+export STAGING_VERSION=""
 
 # Available branches: winello-git, winello, vanilla, staging, staging-tkg, proton, wayland, custom, local
 export WINE_BRANCH="winello-git"
@@ -87,15 +92,17 @@ export WINE_BRANCH="winello-git"
 export RELEASE_VERSION="1"
 
 # Name for patchset you want to apply (e.g. protonGE-9-4-osu-patchset from osu-misc/patches/)
-# Can be set to "tag:<tag_name_here>" to get patches by a tag from the PATCHSET_REPO
-# WARNING: if a repo tag is specified, the WINE_VERSION and STAGING_VERSION set previously will be overridden by
-# the wine-commit and staging-commit from the patch repo
+# Can be set to "remote:<tag_name_here>" to retrieve patches from the PATCHSET_REPO at the given tag
+# 				"remote:latest" will fetch the latest tag (with optional TAG_FILTER) from the repo
 #
-# Leave empty if you have loose patches in custompatches/
-PATCHSET="tag:winello-08-11-2024-ad8b2870-92374493"
+# Leave empty if you have loose patches in the custompatches/ folder
+PATCHSET="remote:latest"
 
 # The repository to pull patches from if PATCHSET="tag:<tag_name_here>" is specified
 PATCHSET_REPO="https://github.com/whrvt/wine-osu-patches.git"
+
+# Filter tags pulled from the repository by this pattern if fetching latest (see git for-each-ref --help)
+TAG_FILTER="winello*"
 
 # Custom path for Wine source
 export CUSTOM_WINE_SOURCE=""
@@ -155,7 +162,7 @@ export USE_CCACHE="true"
 BUILD_OUT_TMP_DIR=wine-"${WINE_BRANCH}"-build
 
 if [ "${SANITIZED_BUILD}" = "true" ]; then
-	Info "Using experimental sanitized build."
+	Info "Using sanitized build."
 
 	_SANITIZED_BUILD_DIR=$(basename "${BUILD_DIR}")
 	old_BUILD_DIR="${BUILD_DIR}"
@@ -351,18 +358,37 @@ if [ -n "${PATCHSET}" ]; then
 	patches_dir="${scriptdir}"/patchset-current
 
 	rm -rf "${patches_dir}" || true
+	mkdir "${patches_dir}" || Error "Couldn't make a ${patches_dir}"
 
-	if [ "${PATCHSET:0:4}" = "tag:" ]; then
-		_git_tag="${PATCHSET:4}"
+	if [ "${PATCHSET:0:7}" = "remote:" ]; then
+		_git_tag="${PATCHSET:7}"
+
+		cd "${patches_dir}"
 
 		git config advice.detachedHead false
+		git init --initial-branch=current-build
+		git remote add origin "${PATCHSET_REPO}"
+		git fetch || Error "The patchset repository URL you specified was invalid."
+
+		if [ "${_git_tag}" = "latest" ]; then
+			# Sort tags (with optional filter) by commit date
+			_git_tag="$(git ls-remote --sort=-committerdate --tags origin "${TAG_FILTER}" | \
+						head -n1 | cut -f2 | cut -f3 -d'/')" # This just gets the sanitized ref <name>, stripping the commit hash and refs/tags/ parts
+			Info "Latest patchbase is now set to: ${_git_tag}"
+		fi
+
 		# Clones to "${scriptdir}"/patchset-current
-		git clone --depth 1 --branch "${_git_tag}" "${PATCHSET_REPO}" "${patches_dir}" || Error "The patchset tag or repository URL you specified was invalid."
+		git reset --hard "${_git_tag}" || Error "The patchset tag given was invalid. Try setting the tag manually instead of 'latest'"
 
 		WINE_VERSION="$(cat "${patches_dir}"/wine-commit)"
 		STAGING_VERSION="$(cat "${patches_dir}"/staging-commit)"
+
+		if [ -r "${patches_dir}"/staging-exclude ]; then
+			STAGING_ARGS+=" $(cat "${patches_dir}"/staging-exclude)"
+		fi
+
+		cd "${scriptdir}"
 	else
-		mkdir "${patches_dir}"
 		tar xf "$(find "${scriptdir}"/osu-misc/ -type f -iregex ".*${PATCHSET}.*")" -C "${patches_dir}" || Error "The patchset you specified was invalid."
 	fi
 else # Use loose patches if PATCHSET isn't specified
