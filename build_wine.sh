@@ -76,19 +76,34 @@ SANITIZED_BUILD="true"
 # This variable affects only winello-git, vanilla, and staging branches. Other branches
 # use their own versions.
 # "winello-git" takes tag names or commit hashes (e.g. wine-9.11)
-export WINE_VERSION="9c69ccf8ef2995548ef5fee9d0b68f68dec5dd62"
+#
+# If the remote repo method is used for a patchset, these are overridden by
+# the wine-commit and staging-commit from the patch repo
+# So, they can remain empty, and will automatically reflect updates to the patchset repo
+export WINE_VERSION=""
+
 # This only applies to winello-git branches. Takes tag names or commit hashes (e.g. v9.11)
-export STAGING_VERSION="1143543d4a4c31879b7fb376b6ca0d3e63f97984"
+export STAGING_VERSION=""
 
 # Available branches: winello-git, winello, vanilla, staging, staging-tkg, proton, wayland, custom, local
 export WINE_BRANCH="winello-git"
 
 # Optional extra release identifier to be added to the package, otherwise will be 1
-export RELEASE_VERSION="2"
+export RELEASE_VERSION="1"
 
 # Name for patchset you want to apply (e.g. protonGE-9-4-osu-patchset from osu-misc/patches/)
-# Leave empty if you have loose patches in custompatches/
-PATCHSET="9.14-2-patchset"
+# Can be set to "remote:<tag_name_here>" to retrieve patches from the PATCHSET_REPO at the given tag
+# 				"remote:latest" will fetch the latest tag (with optional TAG_FILTER) from the repo
+#
+# Leave empty if you have loose patches in the custompatches/ folder
+PATCHSET="remote:latest"
+
+# The repository to pull patches from if PATCHSET="tag:<tag_name_here>" is specified
+PATCHSET_REPO="https://github.com/whrvt/wine-osu-patches.git"
+
+# Filter tags pulled from the repository by this pattern if fetching latest (see git for-each-ref --help)
+TAG_FILTER="winello*"
+
 # Custom path for Wine source
 export CUSTOM_WINE_SOURCE=""
 
@@ -114,7 +129,7 @@ export PROTON_BRANCH="proton_7.0"
 # patchset, but apply all other patches, then set this variable to
 # "--all -W ntdll-NtAlertThreadByThreadId"
 # Leave empty to apply all Staging patches
-export STAGING_ARGS="--all -W odbc32-fixes"
+export STAGING_ARGS="--all"
 
 # Set this to a path to your Wine source code (for example, /home/username/wine-custom-src).
 # This is useful if you already have the Wine source code somewhere on your
@@ -147,7 +162,7 @@ export USE_CCACHE="true"
 BUILD_OUT_TMP_DIR=wine-"${WINE_BRANCH}"-build
 
 if [ "${SANITIZED_BUILD}" = "true" ]; then
-	Info "Using experimental sanitized build."
+	Info "Using sanitized build."
 
 	_SANITIZED_BUILD_DIR=$(basename "${BUILD_DIR}")
 	old_BUILD_DIR="${BUILD_DIR}"
@@ -272,8 +287,7 @@ if [ "$USE_LLVM" = "true" ] && [ "$WINE_OSU" = "true" ]; then
 	export CROSSCC_X64="x86_64-w64-mingw32-clang"
 	export CROSSCC="x86_64-w64-mingw32-clang"
 
-	# feel free to do this a better way :)
-	__llvm_ver="$(basename "$(find "${BOOTSTRAP_PATH}"/"${LLVM_MINGW_PATH}"/lib/clang/ -mindepth 1 -maxdepth 1)" )" || \
+	__llvm_ver="$(env ls -1 "${BOOTSTRAP_PATH}"/"${LLVM_MINGW_PATH}"/lib/clang/)" || \
 		Error "llvm-mingw didn't have a valid version in lib/clang/_version_"
 
 	_CROSS_FLAGS="${_CROSS_FLAGS} -L${LLVM_MINGW_PATH}/lib -I${LLVM_MINGW_PATH}/include -I${LLVM_MINGW_PATH}/lib/clang/$__llvm_ver/include -I${LLVM_MINGW_PATH}/generic-w64-mingw32/include -L${LLVM_MINGW_PATH}/x86_64-w64-mingw32/lib -L${LLVM_MINGW_PATH}/i686-w64-mingw32/lib -L${LLVM_MINGW_PATH}/lib/clang/$__llvm_ver/lib/windows"
@@ -336,6 +350,50 @@ _staging_patcher() {
 	fi || Error "Wine-Staging patches were not applied correctly!"
 
 }
+
+## ------------------------------------------------------------
+
+## Patch source setup
+if [ -n "${PATCHSET}" ]; then
+	patches_dir="${scriptdir}"/patchset-current
+
+	rm -rf "${patches_dir}" || true
+	mkdir "${patches_dir}" || Error "Couldn't make a ${patches_dir}"
+
+	if [ "${PATCHSET:0:7}" = "remote:" ]; then
+		_git_tag="${PATCHSET:7}"
+
+		cd "${patches_dir}"
+
+		git config advice.detachedHead false
+		git init --initial-branch=current-build
+		git remote add origin "${PATCHSET_REPO}"
+		git fetch || Error "The patchset repository URL you specified was invalid."
+
+		if [ "${_git_tag}" = "latest" ]; then
+			# Sort tags (with optional filter) by commit date
+			_git_tag="$(git ls-remote --sort=-committerdate --tags origin "${TAG_FILTER}" | \
+						head -n1 | cut -f2 | cut -f3 -d'/')" # This just gets the sanitized ref <name>, stripping the commit hash and refs/tags/ parts
+			Info "Latest patchbase is now set to: ${_git_tag}"
+		fi
+
+		# Clones to "${scriptdir}"/patchset-current
+		git reset --hard "${_git_tag}" || Error "The patchset tag given was invalid. Try setting the tag manually instead of 'latest'"
+
+		WINE_VERSION="$(cat "${patches_dir}"/wine-commit)"
+		STAGING_VERSION="$(cat "${patches_dir}"/staging-commit)"
+
+		if [ -r "${patches_dir}"/staging-exclude ]; then
+			STAGING_ARGS+=" $(cat "${patches_dir}"/staging-exclude)"
+		fi
+
+		cd "${scriptdir}"
+	else
+		tar xf "$(find "${scriptdir}"/osu-misc/ -type f -iregex ".*${PATCHSET}.*")" -C "${patches_dir}" || Error "The patchset you specified was invalid."
+	fi
+else # Use loose patches if PATCHSET isn't specified
+	patches_dir="${scriptdir}"/custompatches
+fi
 
 ## ------------------------------------------------------------
 
@@ -448,6 +506,9 @@ elif [ "$WINE_BRANCH" = "winello-git" ]; then
 	if [ "$(git rev-parse HEAD)" = "09a6d0f2913b064e09ed0bdc27b7bbc17a5fb0fc" ]; then
 		Info "Adding staging hotfix to remove the 'odbc-remove-unixodbc' patchset"
 		STAGING_ARGS+=" -W odbc-remove-unixodbc"
+	elif [ "$(git rev-parse HEAD)" = "9c69ccf8ef2995548ef5fee9d0b68f68dec5dd62" ]; then
+		Info "Adding staging hotfix to remove the 'odbc32-fixes' patchset"
+		STAGING_ARGS+=" -W odbc32-fixes"
 	fi
 
 	WINE_VERSION=$(git describe --tags --abbrev=0 | cut -f2 -d'-')
@@ -543,15 +604,6 @@ fi
 ## ------------------------------------------------------------
 
 # Applying custom patches to Wine
-patches_dir="${scriptdir}"/custompatches
-if [ -n "${PATCHSET}" ]; then
-	rm -rf "${scriptdir}"/patchset-current || true
-	mkdir "${scriptdir}"/patchset-current
-	tar xf "$(find "${scriptdir}"/osu-misc/ -type f -iregex ".*${PATCHSET}.*")" -C "${scriptdir}"/patchset-current || Error "The patchset you specified was invalid."
-
-	patches_dir="${scriptdir}"/patchset-current
-fi
-
 cd "${BUILD_DIR}"/wine
 rm "${scriptdir}"/patches.log || true
 
