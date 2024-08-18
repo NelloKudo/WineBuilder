@@ -89,16 +89,17 @@ export STAGING_VERSION=""
 export WINE_BRANCH="winello-git"
 
 # Optional extra release identifier to be added to the package, otherwise will be 1
-export RELEASE_VERSION="1"
+# winello-git branch: if unset, sets to number of commits since chosen point release
+export RELEASE_VERSION=""
 
 # Name for patchset you want to apply (e.g. protonGE-9-4-osu-patchset from osu-misc/patches/)
 # Can be set to "remote:<tag_name_here>" to retrieve patches from the PATCHSET_REPO at the given tag
 # 				"remote:latest" will fetch the latest tag (with optional TAG_FILTER) from the repo
 #
 # Leave empty if you have loose patches in the custompatches/ folder
-PATCHSET="remote:latest"
+PATCHSET=""
 
-# The repository to pull patches from if PATCHSET="tag:<tag_name_here>" is specified
+# The repository to pull patches from if PATCHSET="remote:<tag_name_here>" is specified
 PATCHSET_REPO="https://github.com/whrvt/wine-osu-patches.git"
 
 # Filter tags pulled from the repository by this pattern if fetching latest (see git for-each-ref --help)
@@ -155,18 +156,22 @@ export DO_NOT_COMPILE="false"
 # Make sure that ccache is installed before enabling this.
 export USE_CCACHE="true"
 
+CLEAN_UNCOMPRESSED_BUILD="TRUE"
+
 ## ------------------------------------------------------------
 ## 						BUILD SETUP
 ## ------------------------------------------------------------
 
 BUILD_OUT_TMP_DIR=wine-"${WINE_BRANCH}"-build
+SOURCE_DIR="${BUILD_DIR}-sources"
+if [ ! -d "${SOURCE_DIR}" ]; then mkdir -p "${SOURCE_DIR}"; fi || Error "Error setting up wine source directory. Did you specify a valid BUILD_DIR?"
 
 if [ "${SANITIZED_BUILD}" = "true" ]; then
 	Info "Using sanitized build."
 
-	_SANITIZED_BUILD_DIR=$(basename "${BUILD_DIR}")
+	SANITIZED_BUILD_DIR=/tmp/"$(basename "${BUILD_DIR}")"
 	old_BUILD_DIR="${BUILD_DIR}"
-	BUILD_DIR="/tmp/${_SANITIZED_BUILD_DIR}"
+	BUILD_DIR="${SANITIZED_BUILD_DIR}"
 
 	mkdir -p "${BUILD_DIR}" || Error "Error setting up sanitized build directory. Do you not have a /tmp/ directory for some reason?"
 fi
@@ -221,6 +226,7 @@ _bwrap () {
     bwrap --ro-bind "${BOOTSTRAP_PATH}" / --dev /dev --ro-bind /sys /sys \
 		  --proc /proc --tmpfs /tmp --tmpfs /home --tmpfs /run --tmpfs /var \
 		  --tmpfs /mnt --tmpfs /media --bind "${BUILD_DIR}" "${BUILD_DIR}" \
+		  --bind "${SOURCE_DIR}" "${SOURCE_DIR}" \
 		  --bind-try "${XDG_CACHE_HOME}"/ccache "${XDG_CACHE_HOME}"/ccache \
 		  --bind-try "${HOME}"/.ccache "${HOME}"/.ccache \
 		  --setenv PATH "/usr/local/llvm-mingw/bin:/bin:/sbin:/usr/bin:/usr/sbin" \
@@ -287,10 +293,10 @@ if [ "$USE_LLVM" = "true" ] && [ "$WINE_OSU" = "true" ]; then
 	export CROSSCC_X64="x86_64-w64-mingw32-clang"
 	export CROSSCC="x86_64-w64-mingw32-clang"
 
-	__llvm_ver="$(env ls -1 "${BOOTSTRAP_PATH}"/"${LLVM_MINGW_PATH}"/lib/clang/)" || \
+	env ls -1 "${BOOTSTRAP_PATH}"/"${LLVM_MINGW_PATH}"/lib/clang/ || \
 		Error "llvm-mingw didn't have a valid version in lib/clang/_version_"
 
-	_CROSS_FLAGS="${_CROSS_FLAGS} -L${LLVM_MINGW_PATH}/lib -I${LLVM_MINGW_PATH}/include -I${LLVM_MINGW_PATH}/lib/clang/$__llvm_ver/include -I${LLVM_MINGW_PATH}/generic-w64-mingw32/include -L${LLVM_MINGW_PATH}/x86_64-w64-mingw32/lib -L${LLVM_MINGW_PATH}/i686-w64-mingw32/lib -L${LLVM_MINGW_PATH}/lib/clang/$__llvm_ver/lib/windows"
+	_CROSS_FLAGS="${_CROSS_FLAGS}"
 	export CROSSCFLAGS="${_CROSS_FLAGS}"
 	export CROSSCXXFLAGS="${_CROSS_FLAGS}"
 
@@ -344,9 +350,9 @@ _staging_patcher() {
 	cd wine || Error "Couldn't change directory to wine's source folder"
 
 	if [ -n "${STAGING_ARGS}" ]; then
-		_bwrap "${staging_patcher[@]}" $STAGING_ARGS
+		_bwrap "${staging_patcher[@]}" --no-autoconf $STAGING_ARGS
 	else
-		_bwrap "${staging_patcher[@]}" --all
+		_bwrap "${staging_patcher[@]}" --no-autoconf --all 
 	fi || Error "Wine-Staging patches were not applied correctly!"
 
 }
@@ -398,8 +404,11 @@ fi
 ## ------------------------------------------------------------
 
 # Replace the "latest" parameter with the actual latest Wine version
-if [ "${WINE_VERSION}" = "latest" ] || [ -z "${WINE_VERSION}" ]; then
-	WINE_VERSION="$(wget -q -O - "https://raw.githubusercontent.com/wine-mirror/wine/master/VERSION" | tail -c +14)"
+rm -rf "${BUILD_DIR}" || true
+if [ "$WINE_BRANCH" != "winello-git" ]; then
+	if [ "${WINE_VERSION}" = "latest" ] || [ -z "${WINE_VERSION}" ]; then
+		WINE_VERSION="$(wget -q -O - "https://raw.githubusercontent.com/wine-mirror/wine/master/VERSION" | tail -c +14)"
+	fi
 fi
 
 # Stable and Development versions have a different source code location
@@ -408,10 +417,6 @@ if [ "$(echo "$WINE_VERSION" | cut -c3)" = "0" ]; then
 	WINE_URL_VERSION=$(echo "$WINE_VERSION" | cut -c1).0
 else
 	WINE_URL_VERSION=$(echo "$WINE_VERSION" | cut -c1).x
-fi
-
-if ! [ "$WINE_BRANCH" = "winello-git" ]; then
-	rm -rf "${BUILD_DIR}" || true
 fi
 
 mkdir -p "${BUILD_DIR}" || Error "Couldn't create ${BUILD_DIR}?"
@@ -487,16 +492,20 @@ elif [ "$WINE_BRANCH" = "local" ]; then
 	# cp -r /your/local/wine "${BUILD_DIR}"/wine
 elif [ "$WINE_BRANCH" = "winello-git" ]; then
 	# Wine setup
-	if [ -d "${BUILD_DIR}"/wine ]; then
-		cd "${BUILD_DIR}"/wine
-		git fetch origin master
-		git reset --hard FETCH_HEAD
-		git clean -xdf
-	else
-		git clone https://github.com/wine-mirror/wine || Error "Cloning wine failed, is the source you used working? Please try again."
-	fi || Error "Setting up wine-staging git source failed. Clean out your build directory and try again."
-	
-	cd "${BUILD_DIR}"/wine
+	BUILD_NAME=winello-git
+	{ 
+		cd "${SOURCE_DIR}"/wine 1>/dev/null && \
+		git fetch origin master 1>/dev/null && \
+		git reset --hard FETCH_HEAD 1>/dev/null && \
+		git clean -xdf || true ;
+	} || \
+	{  
+		cd "${SOURCE_DIR}" && \
+		git clone https://github.com/wine-mirror/wine wine || Error "Cloning wine failed, is the source you used working? Please try again." ;
+	} || Error "Setting up wine git source failed. Clean out your build directory and try again."
+		
+
+	cd "${SOURCE_DIR}"/wine
 
 	if [ -n "${WINE_VERSION}" ]; then
 		Info "Setting wine commit to ${WINE_VERSION}, was at $(git rev-parse HEAD)"
@@ -512,26 +521,35 @@ elif [ "$WINE_BRANCH" = "winello-git" ]; then
 	fi
 
 	WINE_VERSION=$(git describe --tags --abbrev=0 | cut -f2 -d'-')
-	BUILD_NAME=winello-git
 
-	cd "${BUILD_DIR}"
+	if [ -z "${RELEASE_VERSION}" ]; then
+		RELEASE_VERSION=$(git rev-list --count --cherry-pick wine-"${WINE_VERSION}"...HEAD)
+	fi
 
 	# Staging setup
-	if [ -d wine-staging-"${WINE_VERSION}" ]; then
-		cd wine-staging-"${WINE_VERSION}"
-		git fetch origin master
-		git reset --hard FETCH_HEAD
-		git clean -xdf
-	else
-		git clone https://github.com/wine-staging/wine-staging wine-staging-"${WINE_VERSION}" || Error "Cloning wine-staging failed, is the source you used working? Please try again."
-	fi || Error "Setting up wine-staging git source failed. Clean out your build directory and try again."
+	{ 
+		cd "${SOURCE_DIR}"/wine-staging 1>/dev/null && \
+		git fetch origin master 1>/dev/null && \
+		git reset --hard FETCH_HEAD 1>/dev/null && \
+		git clean -xdf || true ; 
+	} || \
+	{ 
+		cd "${SOURCE_DIR}"
+		git clone https://github.com/wine-staging/wine-staging wine-staging || Error "Cloning wine-staging failed, is the source you used working? Please try again." ; 
+	} || Error "Setting up wine-staging git source failed. Clean out your build directory and try again."
+	
 
-	cd "${BUILD_DIR}"/wine-staging-"${WINE_VERSION}"
+	cd "${SOURCE_DIR}"/wine-staging
 
 	if [ -n "${STAGING_VERSION}" ]; then
 		Info "Setting wine-staging commit to ${STAGING_VERSION}, was at $(git rev-parse HEAD)"
 		git reset --hard "${STAGING_VERSION}" || Error "Failed to change to your selected STAGING_VERSION."
 	fi
+
+	rm -rf "${BUILD_DIR}"/wine || true
+	rm -rf "${BUILD_DIR}"/wine-staging* || true
+	cp -r "${SOURCE_DIR}"/wine "${BUILD_DIR}"/wine || Error "Failed to copy temp wine source to build dir"
+	cp -r "${SOURCE_DIR}"/wine-staging "${BUILD_DIR}"/wine-staging-"${WINE_VERSION}" || Error "Failed to copy temp wine-staging source to build dir"
 
 	cd "${BUILD_DIR}"
 
@@ -564,10 +582,9 @@ else
 	fi
 fi
 
-cd "${BUILD_DIR}" || Error "Couldn't change directory to build dir?"
+cd "${BUILD_DIR}" || Error "Couldn't change directory to source dir?"
 
-if [ ! -d wine ]; then
-	clear
+if [ ! -d "${BUILD_DIR}"/wine ]; then
 	echo "No Wine source code found!"
 	Info "Make sure that the correct Wine version is specified."
 	exit 1
@@ -715,7 +732,6 @@ if [ -d "$BUILD_DIR" ]; then
       -type f '(' -iname '*.a' -or -iname '*.dll' -or -iname '*.so' -or -iname '*.sys' -or -iname '*.drv' -or -iname '*.exe' ')' \
       -print0 \
       | xargs -0 strip --strip-unneeded &>/dev/null || true
-
 fi
 
 if [ "${SANITIZED_BUILD}" = "true" ]; then
@@ -723,7 +739,7 @@ if [ "${SANITIZED_BUILD}" = "true" ]; then
 	rm -rf "${old_BUILD_DIR}" || true
 	mkdir "${old_BUILD_DIR}" || Error "Couldn't make a directory where you wanted to."
 	mv "${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}" "${old_BUILD_DIR}"/ || Error "Couldn't copy the sanitized build to your final build location."
-	rm -rf "${BUILD_DIR}"/build{32,64} || true
+	rm -rf "${SANITIZED_BUILD_DIR}" || true
 
 	BUILD_DIR="${old_BUILD_DIR}"
 fi
@@ -733,6 +749,10 @@ Info "Creating and compressing archives..."
 
 build="${BUILD_OUT_TMP_DIR}"
 if [ -d "${build}" ]; then
+	if [ "${USE_WOW64}" = "true" ]; then
+		ln -srf "${build}"/bin/wine{,64}
+	fi
+
 	rm -rf "${build}"/share/applications "${build}"/share/man
 
 	if [ -f wine/wine-tkg-config.txt ]; then
@@ -755,17 +775,10 @@ if [ -d "${build}" ]; then
 		mv "${build}".tar.xz "${scriptdir}"
 
 	fi
-	if [ "${SANITIZED_BUILD}" = "true" ]; then
-		Info "Sanitized build: Removing uncompressed local build directory."
-		rm -rf "${BUILD_DIR}"
-	fi
 fi
 
-# we should keep the git sources around since they take up quite a bit of space, just delete the temp build dirs
-if ! [ "${WINE_BRANCH}" = "winello-git" ]; then 
+if [ "${CLEAN_UNCOMPRESSED_BUILD}" = "true" ]; then 
 	rm -rf "${BUILD_DIR}"
-else
-	rm -rf "${BUILD_DIR}"/build{32,64}
 fi
 
 Info "Done! Build completed!"
