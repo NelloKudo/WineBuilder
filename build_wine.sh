@@ -97,7 +97,7 @@ export RELEASE_VERSION=""
 # 				"remote:latest" will fetch the latest tag (with optional TAG_FILTER) from the repo
 #
 # Leave empty if you have loose patches in the custompatches/ folder
-PATCHSET=""
+PATCHSET="remote:latest"
 
 # The repository to pull patches from if PATCHSET="remote:<tag_name_here>" is specified
 PATCHSET_REPO="https://github.com/whrvt/wine-osu-patches.git"
@@ -146,6 +146,9 @@ export CUSTOM_SRC_PATH=""
 # If this variable is set to true, root rights are not required.
 export DO_NOT_COMPILE="false"
 
+# Build with abbreviated compiler output, reduces cluttering terminal scrollback buffer
+ENABLE_QUIET_COMPILE="true"
+
 # Set to true to use ccache to speed up subsequent compilations.
 # First compilation will be a little longer, but subsequent compilations
 # will be significantly faster (especially if you use a fast storage like SSD).
@@ -156,7 +159,8 @@ export DO_NOT_COMPILE="false"
 # Make sure that ccache is installed before enabling this.
 export USE_CCACHE="true"
 
-CLEAN_UNCOMPRESSED_BUILD="TRUE"
+# Remove the uncompressed build files after the script has finished.
+CLEAN_UNCOMPRESSED_BUILD="true"
 
 ## ------------------------------------------------------------
 ## 						BUILD SETUP
@@ -206,6 +210,11 @@ WINE_32_BUILD_OPTIONS=(
 	--libdir="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}"/lib
     --with-wine64="${BUILD_DIR}"/build64
 )
+
+if [ "${ENABLE_QUIET_COMPILE}" = "true" ] ; then
+	Info "Compiling with brief output.."
+	WINE_BUILD_OPTIONS+=(--enable-silent-rules)
+fi
 
 # Checking for Wayland...
 if [ "${ENABLE_WAYLAND}" = "true" ] ; then
@@ -265,7 +274,7 @@ export CROSSLDFLAGS="${LDFLAGS}"
 ## Flags used to compile wine-osu..
 if [ "$WINE_OSU" = "true" ]; then
 	export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-	_common_cflags="-march=x86-64 -mtune=generic -O2 -pipe -fno-strict-aliasing -fomit-frame-pointer -fwrapv -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+	_common_cflags="-march=x86-64 -mtune=generic -O2 -pipe -fomit-frame-pointer -fno-semantic-interposition -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
 	_native_common_cflags="" # only for the non-mingw side
 
 	_GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
@@ -667,6 +676,7 @@ export SOURCE_DATE_EPOCH=0
 export PKG_CONFIG_LIBDIR=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:${LLVM_MINGW_PATH}/x86_64-w64-mingw32/lib/pkgconfig
 export PKG_CONFIG_PATH=$PKG_CONFIG_LIBDIR
 export x86_64_CC="${CROSSCC_X64}"
+export i386_CC="${CROSSCC_X32}"
 export CROSSCC="${CROSSCC_X64}"
 
 rm -rf "${BUILD_DIR}"/build64 || true
@@ -683,7 +693,6 @@ if ! [ "${USE_WOW64}" = "true" ]; then
 
 	export PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/i386-linux-gnu/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:${LLVM_MINGW_PATH}/i686-w64-mingw32/lib/pkgconfig
 	export PKG_CONFIG_PATH=$PKG_CONFIG_LIBDIR
-	export i386_CC="${CROSSCC_X32}"
 	export CROSSCC="${CROSSCC_X32}"
 
 	if [ "$USE_CLANG" = "true" ]; then
@@ -712,6 +721,7 @@ if [ -d "$BUILD_DIR" ]; then
 
 	if ! [ "${USE_WOW64}" = "true" ]; then
 		Info "Packaging Wine-32..."
+		export CROSSCC="${CROSSCC_X32}"
 		cd "${BUILD_DIR}"/build32
 		_bwrap make -j$(($(nproc) + 1)) \
 		prefix="${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}" \
@@ -720,6 +730,7 @@ if [ -d "$BUILD_DIR" ]; then
 	fi
 
 	Info "Packaging Wine-64..."
+	export CROSSCC="${CROSSCC_X64}"
 	cd "${BUILD_DIR}"/build64
 	# clang doesn't like to build static lib64
 	_bwrap make -j$(($(nproc) + 1)) "$( if [ "$USE_CLANG" = "true" ]; then echo CC=gcc ; fi )" \
@@ -735,7 +746,7 @@ if [ -d "$BUILD_DIR" ]; then
 fi
 
 if [ "${SANITIZED_BUILD}" = "true" ]; then
-	Info "Moving sanitized build to your specified location."
+	Info "Moving sanitized build to your specified location..."
 	rm -rf "${old_BUILD_DIR}" || true
 	mkdir "${old_BUILD_DIR}" || Error "Couldn't make a directory where you wanted to."
 	mv "${BUILD_DIR}"/"${BUILD_OUT_TMP_DIR}" "${old_BUILD_DIR}"/ || Error "Couldn't copy the sanitized build to your final build location."
@@ -778,6 +789,7 @@ if [ -d "${build}" ]; then
 fi
 
 if [ "${CLEAN_UNCOMPRESSED_BUILD}" = "true" ]; then 
+	Info "Removing uncompressed build files..."
 	rm -rf "${BUILD_DIR}"
 fi
 
