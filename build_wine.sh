@@ -505,6 +505,7 @@ elif [ "$WINE_BRANCH" = "winello-git" ]; then
 	{ 
 		cd "${SOURCE_DIR}"/wine 1>/dev/null && \
 		git fetch origin master 1>/dev/null && \
+		git fetch --tags 1>/dev/null && \
 		git reset --hard FETCH_HEAD 1>/dev/null && \
 		git clean -xdf || true ;
 	} || \
@@ -539,6 +540,7 @@ elif [ "$WINE_BRANCH" = "winello-git" ]; then
 	{ 
 		cd "${SOURCE_DIR}"/wine-staging 1>/dev/null && \
 		git fetch origin master 1>/dev/null && \
+		git fetch --tags 1>/dev/null && \
 		git reset --hard FETCH_HEAD 1>/dev/null && \
 		git clean -xdf || true ; 
 	} || \
