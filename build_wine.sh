@@ -522,6 +522,14 @@ elif [ "$WINE_BRANCH" = "winello-git" ]; then
 		git reset --hard "${WINE_VERSION}" || Error "Failed to change to your selected WINE_VERSION."
 	fi
 
+	WINE_VERSION=$(git describe --tags --abbrev=0 | cut -f2 -d'-')
+
+	if [ -z "${RELEASE_VERSION}" ]; then
+		RELEASE_VERSION=$(git rev-list --count --cherry-pick wine-"${WINE_VERSION}"...HEAD)
+	fi
+
+	# Staging setup
+	# Overrides
 	if [ "$(git rev-parse HEAD)" = "09a6d0f2913b064e09ed0bdc27b7bbc17a5fb0fc" ]; then
 		Info "Adding staging hotfix to remove the 'odbc-remove-unixodbc' patchset"
 		STAGING_ARGS+=" -W odbc-remove-unixodbc"
@@ -530,13 +538,12 @@ elif [ "$WINE_BRANCH" = "winello-git" ]; then
 		STAGING_ARGS+=" -W odbc32-fixes"
 	fi
 
-	WINE_VERSION=$(git describe --tags --abbrev=0 | cut -f2 -d'-')
-
-	if [ -z "${RELEASE_VERSION}" ]; then
-		RELEASE_VERSION=$(git rev-list --count --cherry-pick wine-"${WINE_VERSION}"...HEAD)
+	# Breaks seccomp (example: opening browser from clicking on links in wine)
+	if [ "${USE_WOW64}" = "true" ]; then
+		Info "WoW64 build: adding staging hotfix to remove the 'ntdll-Syscall_Emulation' patchset"
+		STAGING_ARGS+=" -W ntdll-Syscall_Emulation"
 	fi
 
-	# Staging setup
 	{ 
 		cd "${SOURCE_DIR}"/wine-staging 1>/dev/null && \
 		git fetch origin master 1>/dev/null && \
