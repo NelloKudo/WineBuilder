@@ -345,30 +345,8 @@ fi
 
 ## ------------------------------------------------------------
 
-## Helper function to apply staging patches
-_staging_patcher() {
-	Info "Applying Wine-Staging patches.."
-
-	if [ -f wine-staging-"${WINE_VERSION}"/patches/patchinstall.sh ]; then
-		staging_patcher=("${BUILD_DIR}"/wine-staging-"${WINE_VERSION}"/patches/patchinstall.sh
-						DESTDIR="${BUILD_DIR}"/wine)
-	else
-		staging_patcher=("${BUILD_DIR}"/wine-staging-"${WINE_VERSION}"/staging/patchinstall.py)
-	fi
-
-	cd wine || Error "Couldn't change directory to wine's source folder"
-
-	if [ -n "${STAGING_ARGS}" ]; then
-		_bwrap "${staging_patcher[@]}" --no-autoconf $STAGING_ARGS
-	else
-		_bwrap "${staging_patcher[@]}" --no-autoconf --all 
-	fi || Error "Wine-Staging patches were not applied correctly!"
-
-}
-
-## ------------------------------------------------------------
-
 ## Patch source setup
+rm "${scriptdir}"/patches.log || true
 if [ -n "${PATCHSET}" ]; then
 	patches_dir="${scriptdir}"/patchset-current
 
@@ -409,6 +387,40 @@ if [ -n "${PATCHSET}" ]; then
 else # Use loose patches if PATCHSET isn't specified
 	patches_dir="${scriptdir}"/custompatches
 fi
+
+## ------------------------------------------------------------
+
+## Helper function to apply staging patches
+_staging_patcher() {
+	Info "Applying Wine-Staging patches.."
+
+	if [ -f wine-staging-"${WINE_VERSION}"/patches/patchinstall.sh ]; then
+		staging_patcher=("${BUILD_DIR}"/wine-staging-"${WINE_VERSION}"/patches/patchinstall.sh
+						DESTDIR="${BUILD_DIR}"/wine)
+	else
+		staging_patcher=("${BUILD_DIR}"/wine-staging-"${WINE_VERSION}"/staging/patchinstall.py)
+	fi
+
+	cd wine || Error "Couldn't change directory to wine's source folder"
+
+	if find "${patches_dir}"/staging-overrides -name "*spatch" -print0 -quit | grep . >/dev/null; then
+		for override in "${patches_dir}"/staging-overrides/*; do
+			base=$(basename "${override}")
+			dest=$(find "${BUILD_DIR}"/wine-staging-"${WINE_VERSION}"/patches/ -name "${base%.spatch}*")
+			cp "${override}" "${dest}"
+		done
+
+		Info "Overrode all staging patches matching those in staging-overrides/*.spatch"
+		printf "\nOverrode all staging patches matching those in staging-overrides/*.spatch\n\n" >> "${scriptdir}"/patches.log
+	fi
+
+	if [ -n "${STAGING_ARGS}" ]; then
+		_bwrap "${staging_patcher[@]}" --no-autoconf $STAGING_ARGS
+	else
+		_bwrap "${staging_patcher[@]}" --no-autoconf --all
+	fi || Error "Wine-Staging patches were not applied correctly!"
+
+}
 
 ## ------------------------------------------------------------
 
@@ -640,7 +652,6 @@ fi
 
 # Applying custom patches to Wine
 cd "${BUILD_DIR}"/wine
-rm "${scriptdir}"/patches.log || true
 
 for i in $(find "$patches_dir" -type f -iregex ".*\.patch"  | LC_ALL=C sort -f ); do
     Info "Applying custom patch '$i'"
