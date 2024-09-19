@@ -665,6 +665,10 @@ git init &> /dev/null || true
 git add --all || true
 git commit -m "makepkg" || true
 
+if [ -e dlls/winevulkan/make_vulkan ]; then
+chmod +x dlls/winevulkan/make_vulkan
+dlls/winevulkan/make_vulkan -x vk.xml
+fi
 chmod +x tools/make_makefiles
 tools/make_makefiles
 chmod +x tools/make_requests
