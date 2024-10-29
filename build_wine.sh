@@ -279,7 +279,7 @@ package_wine() {
     Info "Creating and compressing archives..."
     XZ_OPT="-9 -T0 " tar -Jcf "wine-osu-${WINE_BRANCH}-${WINE_VERSION}${WOW_NAME:-}-${RELEASE_VERSION}-x86_64.tar.xz" \
         --xattrs --numeric-owner --owner=0 --group=0 wine-osu
-    mv "wine-osu-${WINE_BRANCH}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz" "${WINE_ROOT}"
+    mv "wine-osu-${WINE_BRANCH}-${WINE_VERSION}${WOW_NAME:-}-${RELEASE_VERSION}-x86_64.tar.xz" "${WINE_ROOT}"
 }
 
 ## ------------------------------------------------------------
