@@ -80,6 +80,8 @@ WINE_32_BUILD_OPTIONS=(
 ##                  Compiler Configuration
 ## ------------------------------------------------------------
 
+export PKG_CONFIG="pkg-config"
+
 # LLVM-MinGW configuration
 export LLVM_MINGW_PATH="/usr/local/llvm-mingw"
 export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
