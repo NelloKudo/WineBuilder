@@ -2,7 +2,7 @@
 
 mkdir -p {custompatches,ccache,output,sources}
 
-docker build -t wine-builder .
+docker build --progress=plain -t wine-builder .
 
 docker run --rm -it \
     --name wine-builder \

@@ -11,159 +11,6 @@ Error() {
     exit 1
 }
 
-## -------------------------------------------------------
-##              WineBuilder Docker Settings
-## -------------------------------------------------------
-
-# Base paths
-WINE_ROOT="/wine"
-BUILD_DIR="${WINE_ROOT}/build_wine"
-SOURCE_DIR="${WINE_ROOT}/sources"
-
-# Wine version settings
-WINE_VERSION="${WINE_VERSION:-}"
-STAGING_VERSION="${STAGING_VERSION:-}"
-WINE_BRANCH="winello"
-RELEASE_VERSION="${RELEASE_VERSION:-}"
-
-# Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
-PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
-PATCHSET_REPO="${PATCHSET_REPO:-https://github.com/whrvt/wine-osu-patches.git}"
-TAG_FILTER="${TAG_FILTER:-winello*}"
-
-# Build configuration
-USE_WOW64="${USE_WOW64:-true}"
-STAGING_ARGS="${STAGING_ARGS:---all}"
-
-## ------------------------------------------------------------
-##                      Build Setup
-## ------------------------------------------------------------
-
-if [ "$USE_WOW64" = "true" ]; then WOW_NAME="-wow64"; fi
-BUILD_OUT_TMP_DIR="wine-${WINE_BRANCH}-build"
-
-# Ensure source directory exists
-mkdir -p "${SOURCE_DIR}"
-
-WINE_BUILD_OPTIONS=(
-    --prefix="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"
-    --disable-tests
-    --with-x
-    --with-gstreamer
-    --with-wayland
-    --enable-silent-rules
-    --without-oss
-    --without-coreaudio
-    --without-cups
-    --without-sane
-)
-
-# Configure WoW64 build options
-if [ "${USE_WOW64}" = "true" ]; then
-    WINE_64_BUILD_OPTIONS=(
-        --enable-archs="x86_64,i386"
-        --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib64"
-    )
-else
-    WINE_64_BUILD_OPTIONS=(
-        --enable-win64
-        --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib64"
-    )
-fi
-
-WINE_32_BUILD_OPTIONS=(
-    --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
-    --with-wine64="${BUILD_DIR}/build64"
-)
-
-## ------------------------------------------------------------
-##                  Compiler Configuration
-## ------------------------------------------------------------
-
-export PKG_CONFIG="pkg-config"
-
-# LLVM-MinGW configuration
-export LLVM_MINGW_PATH="/usr/local/llvm-mingw"
-export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
-
-# Compiler flags
-export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-_common_cflags="-march=x86-64 -mtune=generic -msse -msse2 -static-libgcc -static-libstdc++ -pipe -Oz -mfpmath=sse -fno-strict-aliasing \
-                -fomit-frame-pointer -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
-_native_common_cflags=""
-
-_GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
-_LD_FLAGS="${_GCC_FLAGS} -Wl,-O2,--sort-common,--as-needed"
-
-_CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-_CROSS_LD_FLAGS="${_CROSS_FLAGS} -Wl,/FILEALIGN:4096,/OPT:REF,/OPT:ICF"
-
-# Compiler settings
-export CC="ccache clang"
-export CXX="ccache clang++"
-export CROSSCC="ccache clang"
-export CROSSCC_X32="ccache clang"
-export CROSSCXX_X32="ccache clang++"
-export CROSSCC_X64="ccache clang"
-export CROSSCXX_X64="ccache clang++"
-
-export i386_CC="${CROSSCC_X32}"
-export x86_64_CC="${CROSSCC_X64}"
-
-# Compiler and linker flags
-export CFLAGS="${_GCC_FLAGS}"
-export CXXFLAGS="${_GCC_FLAGS}"
-export LDFLAGS="${_LD_FLAGS}"
-
-export CROSSCFLAGS="${_CROSS_FLAGS}"
-export CROSSCXXFLAGS="${_CROSS_FLAGS}"
-export CROSSLDFLAGS="${_CROSS_LD_FLAGS}"
-
-WINE_64_BUILD_OPTIONS+=(--with-mingw="$CROSSCC_X64")
-WINE_32_BUILD_OPTIONS+=(--with-mingw="$CROSSCC_X32")
-
-## ------------------------------------------------------------
-##                  Patch Management
-## ------------------------------------------------------------
-
-# Initialize patch logging
-rm -f "${WINE_ROOT}/patches.log"
-
-if [ -n "${PATCHSET}" ]; then
-    Info "Patchset" "${PATCHSET}"
-    patches_dir="${WINE_ROOT}/patchset-current"
-    rm -rf "${patches_dir}"
-    mkdir -p "${patches_dir}"
-
-    if [ "${PATCHSET:0:7}" = "remote:" ]; then
-        _git_tag="${PATCHSET:7}"
-        cd "${patches_dir}"
-
-        git init
-        git config advice.detachedHead false
-        git remote add origin "${PATCHSET_REPO}"
-        git fetch || Error "Invalid patchset repository URL"
-
-        if [ "${_git_tag}" = "latest" ]; then
-            _git_tag="$(git ls-remote --sort=-committerdate --tags origin "${TAG_FILTER}" |
-                head -n1 | cut -f2 | cut -f3 -d'/')"
-            Info "Latest patchset tag: ${_git_tag}"
-        fi
-
-        git reset --hard "${_git_tag}" || Error "Invalid patchset tag"
-
-        WINE_VERSION="$(cat "${patches_dir}/wine-commit")"
-        STAGING_VERSION="$(cat "${patches_dir}/staging-commit")"
-
-        [ -r "${patches_dir}/staging-exclude" ] && STAGING_ARGS+=" $(cat "${patches_dir}/staging-exclude")"
-    else
-        tar xf "$(find "${WINE_ROOT}/osu-misc/" -type f -iregex ".*${PATCHSET}.*")" -C "${patches_dir}" ||
-            Error "Invalid patchset specified"
-    fi
-else
-    patches_dir="${WINE_ROOT}/custompatches"
-fi
-
 ## ------------------------------------------------------------
 ##                  Build Functions
 ## ------------------------------------------------------------
@@ -210,7 +57,7 @@ build_wine() {
     mkdir -p build64
     cd build64
 
-    export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:${LLVM_MINGW_PATH}/x86_64-w64-mingw32/lib/pkgconfig"
+    export PKG_CONFIG_LIBDIR="/usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
     export x86_64_CC="${CROSSCC_X64}"
     export i386_CC="${CROSSCC_X32}"
@@ -229,10 +76,10 @@ build_wine() {
 
     # Build 32-bit if not WoW64
     if [ "${USE_WOW64}" != "true" ]; then
-        export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/i386-linux-gnu/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:${LLVM_MINGW_PATH}/i686-w64-mingw32/lib/pkgconfig"
+        export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
         export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
         export CROSSCC="${CROSSCC_X32}"
-        export I386_LIBS="-latomic"
+        # export I386_LIBS="-latomic" required for older fsync
 
         cd "${BUILD_DIR}"
         rm -rf build32
@@ -259,9 +106,9 @@ package_wine() {
 
     # Install 64-bit
     cd "${BUILD_DIR}/build64"
-    make -j"$(nproc)" CC=gcc install-lib
+    make -j"$(nproc)" install-lib
 
-    # Strip debug symbols
+    Info "Stripping debug symbols from libraries"
     find "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"{,64} \
         -type f '(' -iname '*.a' -o -iname '*.dll' -o -iname '*.so' -o -iname '*.sys' -o -iname '*.drv' -o -iname '*.exe' ')' \
         -print0 | xargs -0 strip --strip-unneeded 2>/dev/null || true
@@ -279,17 +126,179 @@ package_wine() {
     mv "${BUILD_OUT_TMP_DIR}" "wine-osu"
 
     Info "Creating and compressing archives..."
-    XZ_OPT="-9 -T0 " tar -Jcf "wine-osu-${WINE_BRANCH}-${WINE_VERSION}${WOW_NAME:-}-${RELEASE_VERSION}-x86_64.tar.xz" \
+    XZ_OPT="-9 -T0 " tar -Jcf "wine-osu-winello-${WINE_VERSION}${WOW_NAME:-}-${RELEASE_VERSION}-x86_64.tar.xz" \
         --xattrs --numeric-owner --owner=0 --group=0 wine-osu
-    mv "wine-osu-${WINE_BRANCH}-${WINE_VERSION}${WOW_NAME:-}-${RELEASE_VERSION}-x86_64.tar.xz" "${WINE_ROOT}"
+    mv "wine-osu-winello-${WINE_VERSION}${WOW_NAME:-}-${RELEASE_VERSION}-x86_64.tar.xz" "${WINE_ROOT}"
 }
 
 ## ------------------------------------------------------------
-##                  Main Execution
+##                      Build Setup
+## ------------------------------------------------------------
+
+build_setup() {
+    if [ "$USE_WOW64" = "true" ]; then WOW_NAME="-wow64"; fi
+    BUILD_OUT_TMP_DIR="wine-winello-build"
+
+    # Ensure source directory exists
+    mkdir -p "${SOURCE_DIR}"
+
+    WINE_BUILD_OPTIONS=(
+        --prefix="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"
+        --disable-tests
+        --with-x
+        --with-gstreamer
+        --with-ffmpeg
+        --with-wayland
+        --enable-silent-rules
+        --without-oss
+        --without-coreaudio
+        --without-cups
+        --without-sane
+    )
+
+    # Configure WoW64 build options
+    if [ "${USE_WOW64}" = "true" ]; then
+        WINE_64_BUILD_OPTIONS=(
+            --enable-archs="x86_64,i386"
+            --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib64"
+        )
+    else
+        WINE_64_BUILD_OPTIONS=(
+            --enable-win64
+            --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib64"
+        )
+    fi
+
+    WINE_32_BUILD_OPTIONS=(
+        --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
+        --with-wine64="${BUILD_DIR}/build64"
+    )
+}
+
+## ------------------------------------------------------------
+##                  Compiler Configuration
+## ------------------------------------------------------------
+
+compiler_setup() {
+    export PKG_CONFIG="pkg-config"
+
+    # LLVM-MinGW configuration
+    export LLVM_MINGW_PATH="/usr/local/llvm-mingw"
+    export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
+
+    export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
+    export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+
+    # Compiler flags
+    export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
+    _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O3 -fno-strict-aliasing -fno-semantic-interposition -fgnuc-version=5.99.99 \
+                    -fomit-frame-pointer -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+    _native_common_cflags="-static-libgcc -static-libstdc++"
+
+    _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
+    _LD_FLAGS="${_GCC_FLAGS} -Wl,-O2,--sort-common,--as-needed"
+
+    _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
+    _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
+    #_CROSS_LD_FLAGS="${_CROSS_FLAGS} -Wl,/FILEALIGN:4096,/OPT:REF,/OPT:ICF"
+
+    # Compiler settings
+    export CC="ccache clang"
+    export CXX="ccache clang++"
+    export CROSSCC="ccache x86_64-w64-mingw32-clang"
+    export CROSSCC_X32="ccache i686-w64-mingw32-clang"
+    export CROSSCXX_X32="ccache i686-w64-mingw32-clang++"
+    export CROSSCC_X64="ccache x86_64-w64-mingw32-clang"
+    export CROSSCXX_X64="ccache x86_64-w64-mingw32-clang++"
+
+    export i386_CC="${CROSSCC_X32}"
+    export x86_64_CC="${CROSSCC_X64}"
+
+    # Compiler and linker flags
+    export CFLAGS="${_GCC_FLAGS}"
+    export CXXFLAGS="${_GCC_FLAGS}"
+    export LDFLAGS="${_LD_FLAGS}"
+
+    export CROSSCFLAGS="${_CROSS_FLAGS}"
+    export CROSSCXXFLAGS="${_CROSS_FLAGS}"
+    export CROSSLDFLAGS="${_CROSS_LD_FLAGS}"
+
+    WINE_64_BUILD_OPTIONS+=(--with-mingw="$CROSSCC_X64")
+    WINE_32_BUILD_OPTIONS+=(--with-mingw="$CROSSCC_X32")
+}
+
+## ------------------------------------------------------------
+##                  Patch Management
+## ------------------------------------------------------------
+
+patch_setup() {
+    # Initialize patch logging
+    rm -f "${WINE_ROOT}/patches.log"
+
+    if [ -n "${PATCHSET}" ]; then
+        Info "Patchset" "${PATCHSET}"
+        patches_dir="${WINE_ROOT}/patchset-current"
+        rm -rf "${patches_dir}"
+        mkdir -p "${patches_dir}"
+
+        if [ "${PATCHSET:0:7}" = "remote:" ]; then
+            _git_tag="${PATCHSET:7}"
+            cd "${patches_dir}"
+
+            git init
+            git config advice.detachedHead false
+            git remote add origin "${PATCHSET_REPO}"
+            git fetch || Error "Invalid patchset repository URL"
+
+            if [ "${_git_tag}" = "latest" ]; then
+                _git_tag="$(git ls-remote --sort=-committerdate --tags origin "${TAG_FILTER}" |
+                    head -n1 | cut -f2 | cut -f3 -d'/')"
+                Info "Latest patchset tag: ${_git_tag}"
+            fi
+
+            git reset --hard "${_git_tag}" || Error "Invalid patchset tag"
+
+            WINE_VERSION="$(cat "${patches_dir}/wine-commit")"
+            STAGING_VERSION="$(cat "${patches_dir}/staging-commit")"
+
+            [ -r "${patches_dir}/staging-exclude" ] && STAGING_ARGS+=" $(cat "${patches_dir}/staging-exclude")"
+        else
+            tar xf "$(find "${WINE_ROOT}/osu-misc/" -type f -iregex ".*${PATCHSET}.*")" -C "${patches_dir}" ||
+                Error "Invalid patchset specified"
+        fi
+    else
+        patches_dir="${WINE_ROOT}/custompatches"
+    fi
+}
+
+## ------------------------------------------------------------
+##                Main Execution & Settings
 ## ------------------------------------------------------------
 
 main() {
-    # Clean previous build directory but keep sources
+    # Base paths
+    WINE_ROOT="/wine"
+    BUILD_DIR="${WINE_ROOT}/build_wine"
+    SOURCE_DIR="${WINE_ROOT}/sources"
+
+    # Wine version settings
+    WINE_VERSION="${WINE_VERSION:-}"
+    STAGING_VERSION="${STAGING_VERSION:-}"
+    RELEASE_VERSION="${RELEASE_VERSION:-}"
+
+    # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
+    PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
+    PATCHSET_REPO="${PATCHSET_REPO:-https://github.com/whrvt/wine-osu-patches.git}"
+    TAG_FILTER="${TAG_FILTER:-winello*}"
+
+    # Build configuration
+    USE_WOW64="${1:-true}"
+    STAGING_ARGS="${STAGING_ARGS:---all}"
+
+    build_setup
+    compiler_setup
+    patch_setup
+
     rm -rf "${BUILD_DIR}"
     mkdir -p "${BUILD_DIR}"
 
@@ -420,4 +429,5 @@ main() {
     Info "Build completed successfully!"
 }
 
-main "$@"
+main "$@" false
+# main "$@" # do wow64 too?
