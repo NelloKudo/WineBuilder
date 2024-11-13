@@ -190,6 +190,8 @@ RUN wget -O libunwind.tar.gz https://github.com/libunwind/libunwind/releases/dow
     make -j$(nproc) && \
     make install
 
+RUN python3 -m pip install afdko
+
 RUN apt-get clean && \
     apt-get autoclean && \
     rm -rf /build/* /var/lib/apt/lists/*

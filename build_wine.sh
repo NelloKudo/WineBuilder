@@ -125,6 +125,12 @@ package_wine() {
 
     mv "${BUILD_OUT_TMP_DIR}" "wine-osu"
 
+    # Launch fonts buils script
+    Info "Compiling and installing fonts from Proton..."
+    cd "${WINE_ROOT}/protonfonts"
+    WINE_FONTS_DESTDIR="${BUILD_DIR}/wine-osu/share/wine/fonts" make all-dist
+    cd "${BUILD_DIR}"
+
     Info "Creating and compressing archives..."
     XZ_OPT="-9 -T0 " tar -Jcf "wine-osu-winello-${WINE_VERSION}${WOW_NAME:-}-${RELEASE_VERSION}-x86_64.tar.xz" \
         --xattrs --numeric-owner --owner=0 --group=0 wine-osu
@@ -429,5 +435,5 @@ main() {
     Info "Build completed successfully!"
 }
 
-main "$@" false
+main "$@" true
 # main "$@" # do wow64 too?
