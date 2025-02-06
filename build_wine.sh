@@ -166,7 +166,7 @@ package_wine() {
     fi
 
     Info "Creating and compressing archives..."
-    tar -I "zstd -19" -cf \
+    tar -I "zstd -10" -cf \
         "wine-osu-winello-${WINE_VERSION}${EXTRA_NAME:-}-${RELEASE_VERSION}-x86_64.tar.zst" \
         --xattrs --numeric-owner --owner=0 --group=0 wine-osu
     mv "wine-osu-winello-${WINE_VERSION}${EXTRA_NAME:-}-${RELEASE_VERSION}-x86_64.tar.zst" "${WINE_ROOT}"
@@ -180,7 +180,7 @@ build_setup() {
     EXTRA_NAME=""
     if [ "${BUILD_FONTS}" = "true" ]; then EXTRA_NAME+="-fonts"; fi
     if [ "${USE_WOW64}" = "true" ]; then EXTRA_NAME+="-wow64"; fi
-    if [ "${DEBUG}" != "true" ]; then EXTRA_NAME+="-debug"; fi
+    if [ "${DEBUG}" = "true" ]; then EXTRA_NAME+="-debug"; fi
     BUILD_OUT_TMP_DIR="wine-winello-build"
 
     # Ensure source directory exists
