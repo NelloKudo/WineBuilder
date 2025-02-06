@@ -374,7 +374,7 @@ main() {
     RELEASE_VERSION="${RELEASE_VERSION:-}"
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
-    PATCHSET="" # leave empty for loose patches in custompatches/
+    PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
     PATCHSET_REPO="${PATCHSET_REPO:-https://github.com/whrvt/wine-osu-patches.git}"
     TAG_FILTER="${TAG_FILTER:-winello*}"
 
@@ -514,5 +514,5 @@ main() {
 # option 2: fonts (empty/default = true)
 # option 3: debug (empty/default = false)
 
-main "$@" false false true
+main "$@" true
 # main "$@" true # do wow64 too?

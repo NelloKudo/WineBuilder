@@ -77,7 +77,8 @@ ENV FFMPEG_VERSION="7.0.2" \
     LIBXKBCOMMON_VERSION="1.7.0" \
     LLVM_MINGW_VERSION="20241030" \
     XZ_VERSION="5.6.3" \
-    LIBUNWIND_VERSION="1.8.1"
+    LIBUNWIND_VERSION="1.8.1" \
+    GCC_MINGW_VERSION="14.2.0-1"
 
 RUN wget -O llvm-mingw-${LLVM_MINGW_VERSION}.tar.xz \
     https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VERSION}/llvm-mingw-${LLVM_MINGW_VERSION}-msvcrt-ubuntu-20.04-x86_64.tar.xz && \
@@ -194,14 +195,14 @@ RUN apt-get clean && \
     apt-get autoclean && \
     rm -rf /build/* /var/lib/apt/lists/*
 
-FROM manual-deps AS temp-layer
-
 # thank god this exists
 RUN wget -O gcc-mingw.tar.xz \
-    https://github.com/xpack-dev-tools/mingw-w64-gcc-xpack/releases/download/v14.2.0-1/xpack-mingw-w64-gcc-14.2.0-1-linux-x64.tar.gz && \
+    https://github.com/xpack-dev-tools/mingw-w64-gcc-xpack/releases/download/v${GCC_MINGW_VERSION}/xpack-mingw-w64-gcc-${GCC_MINGW_VERSION}-linux-x64.tar.gz && \
     tar -xf gcc-mingw.tar.xz -C /usr/local && \
     rm -rf /usr/local/gcc-mingw && \
-    mv /usr/local/xpack-mingw-w64-gcc-14.2.0-1 /usr/local/gcc-mingw
+    mv /usr/local/xpack-mingw-w64-gcc-${GCC_MINGW_VERSION} /usr/local/gcc-mingw
+
+FROM manual-deps AS temp-layer
 
 COPY build_wine.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/build_wine.sh

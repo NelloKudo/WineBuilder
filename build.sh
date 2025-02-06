@@ -13,3 +13,7 @@ docker run --rm -it \
     --mount type=bind,source="$(pwd)"/ccache,target=/root/.ccache \
     --mount type=bind,source="$(pwd)"/sources,target=/wine/sources \
     wine-builder
+
+echo "FIXME: fixing up ownership of build files..."
+
+sudo chown -R "$(id -u)":"$(id -g)" output/
