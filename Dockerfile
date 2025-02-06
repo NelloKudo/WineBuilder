@@ -34,14 +34,15 @@ RUN dpkg --add-architecture i386 && apt-get update && apt-get -y install \
     gpg --export --armor 1E9377A2BA9EF27F | apt-key add - && \
     add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
     pip3 install --upgrade pip && \
-    pip3 install meson ninja
+    pip3 install meson ninja afdko
 
 RUN apt-get update && apt-get -y install \
-    jq        libgl-dev    libglvnd-dev   gcc-13-multilib  xserver-xorg-dev    libswscale-dev:i386 \
-    flex      libllvm12    libglx0:i386   libavdevice-dev  libegl1-mesa-dev    libxcb-xkb-dev:i386 \
-    gawk      libxi-dev    liblcms2-dev   libegl-dev:i386  libcupsimage2-dev   libxcursor-dev:i386 \
-    nano      libvulkan1   libpulse-dev   libgcrypt20-dev  libgles2-mesa-dev   libavcodec-dev:i386 \
-    nasm      samba-libs   libvkd3d-dev   libgl1-mesa-dev  libglu1-mesa:i386   libavdevice-dev:i386 \
+    jq        schedtool    libpulse-dev   libasound2-dev   libunistring-dev    libsystemd-dev:i386 \
+    flex      sharutils    libvkd3d-dev   gcc-13-multilib  libusb-1.0-0-dev    libgphoto2-dev:i386 \
+    gawk      fontforge    libxslt1-dev   libavdevice-dev  libxml2-dev:i386    libgstreamer1.0-dev \
+    nano      fonttools    unixodbc-dev   libegl-dev:i386  libcupsimage2-dev   libncurses-dev:i386 \
+    nasm      libvulkan1   libcups2-dev   libgcrypt20-dev  libgles2-mesa-dev   libosmesa6-dev:i386 \
+    zstd      samba-libs   libglu1-mesa   libgl1-mesa-dev  libglu1-mesa:i386   libavdevice-dev:i386 \
     cargo     libcolord2   docbook-utils  libglx-dev:i386  libglvnd-dev:i386   libgl1-mesa-dev:i386 \
     meson     libegl-dev   glslang-tools  libgnutls28-dev  liblcms2-dev:i386   libgnutls28-dev:i386 \
     rustc     libgif-dev   libavutil-dev  libibus-1.0-dev  libpulse-dev:i386   libibus-1.0-dev:i386 \
@@ -52,20 +53,19 @@ RUN apt-get update && apt-get -y install \
     gcc-13    libv4l-dev   libunwind-dev  mesa-common-dev  wayland-protocols   libglu1-mesa-dev:i386 \
     libgl1    libacl1-dev  libvulkan-dev  build-essential  desktop-file-utils  libunistring-dev:i386 \
     gettext   libgl1:i386  libxrandr-dev  g++-13-multilib  libavutil-dev:i386  libusb-1.0-0-dev:i386 \
-    libglx0   libgles-dev  libavcodec-dev libfreetype6-dev libcapi20-dev:i386  libcupsimage2-dev:i386 \
-    prelink   libgsm1-dev  libgl-dev:i386 libgpg-error-dev libdbus-1-dev:i386  libgles2-mesa-dev:i386 \
-    jadetex   libkrb5-dev  libgphoto2-dev libgles-dev:i386 libfontconfig1-dev  libswresample-dev:i386 \
-    autoconf  libldap-dev  libllvm12:i386 libglu1-mesa-dev libmpg123-dev:i386  libxcomposite-dev:i386 \
-    libppl14  libpcap-dev  libncurses-dev libgsm1-dev:i386 libopenal-dev:i386  libfontconfig1-dev:i386 \
-    oss4-dev  libsane-dev  libosmesa6-dev libldap-dev:i386 libunwind-dev:i386  ocl-icd-opencl-dev:i386 \
-    valgrind  libsdl2-dev  libswscale-dev libpcap-dev:i386 libvulkan-dev:i386  libgstreamer1.0-dev:i386 \
-    libxt-dev libtiff-dev  libwayland-dev libsane-dev:i386 libxrandr-dev:i386  libwayland-egl-backend-dev \
-    mingw-w64 libudev-dev  libxcb-xkb-dev libsdl2-dev:i386 ocl-icd-opencl-dev  libwayland-egl-backend-dev:i386 \
-    samba-dev libxml2-dev  libxcursor-dev libtiff-dev:i386 libsystemd-dev:i386 libgstreamer-plugins-base1.0-dev \
-    schedtool libxslt1-dev libxi-dev:i386 libudev-dev:i386 libgphoto2-dev:i386 libgstreamer-plugins-base1.0-dev:i386 \
-    sharutils unixodbc-dev linux-libc-dev libunistring-dev libgstreamer1.0-dev \
-    fontforge libcups2-dev libsystemd-dev libusb-1.0-0-dev libncurses-dev:i386 \
-    fonttools libglu1-mesa libasound2-dev libxml2-dev:i386 libosmesa6-dev:i386
+    libglx0   libgles-dev  libavcodec-dev xserver-xorg-dev libcapi20-dev:i386  libcupsimage2-dev:i386 \
+    prelink   libgsm1-dev  libgl-dev:i386 libegl1-mesa-dev libdbus-1-dev:i386  libgles2-mesa-dev:i386 \
+    jadetex   libkrb5-dev  libgphoto2-dev libfreetype6-dev libfontconfig1-dev  libswresample-dev:i386 \
+    autoconf  libldap-dev  libllvm12:i386 libgpg-error-dev libmpg123-dev:i386  libxcomposite-dev:i386 \
+    libppl14  libpcap-dev  libncurses-dev libgles-dev:i386 libopenal-dev:i386  libfontconfig1-dev:i386 \
+    oss4-dev  libsane-dev  libosmesa6-dev libglu1-mesa-dev libunwind-dev:i386  ocl-icd-opencl-dev:i386 \
+    valgrind  libsdl2-dev  libswscale-dev libgsm1-dev:i386 libvulkan-dev:i386  libgstreamer1.0-dev:i386 \
+    libgl-dev libtiff-dev  libwayland-dev libldap-dev:i386 libxrandr-dev:i386  libwayland-egl-backend-dev \
+    libllvm12 libudev-dev  libxcb-xkb-dev libpcap-dev:i386 ocl-icd-opencl-dev  libwayland-egl-backend-dev:i386 \
+    libxi-dev libxml2-dev  libxcursor-dev libsane-dev:i386 libswscale-dev:i386 libgstreamer-plugins-base1.0-dev \
+    libxt-dev libglvnd-dev libxi-dev:i386 libsdl2-dev:i386 libxcb-xkb-dev:i386 libgstreamer-plugins-base1.0-dev:i386 \
+    mingw-w64 libglx0:i386 linux-libc-dev libtiff-dev:i386 libxcursor-dev:i386 \
+    samba-dev liblcms2-dev libsystemd-dev libudev-dev:i386 libavcodec-dev:i386
 
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 90 \
     --slave /usr/bin/g++ g++ /usr/bin/g++-13 \
@@ -190,11 +190,11 @@ RUN wget -O libunwind.tar.gz https://github.com/libunwind/libunwind/releases/dow
     make -j$(nproc) && \
     make install
 
-RUN python3 -m pip install afdko
-
 RUN apt-get clean && \
     apt-get autoclean && \
     rm -rf /build/* /var/lib/apt/lists/*
+
+FROM manual-deps AS temp-layer
 
 COPY build_wine.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/build_wine.sh

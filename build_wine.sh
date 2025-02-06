@@ -70,7 +70,7 @@ build_wine() {
 
     # Configure and build 64-bit
     "${BUILD_DIR}/wine/configure" "${WINE_BUILD_OPTIONS[@]}" "${WINE_64_BUILD_OPTIONS[@]}"
-    make -j"$(nproc)"
+    make -j$(($(nproc) + 1))
 
     unset UNWIND_CFLAGS UNWIND_LIBS
 
@@ -87,7 +87,7 @@ build_wine() {
         cd build32
 
         "${BUILD_DIR}/wine/configure" "${WINE_BUILD_OPTIONS[@]}" "${WINE_32_BUILD_OPTIONS[@]}"
-        make -j"$(nproc)"
+        make -j$(($(nproc) + 1))
     fi
 
     unset SOURCE_DATE_EPOCH
@@ -98,20 +98,24 @@ package_wine() {
 
     cd "${BUILD_DIR}"
 
+    if [ "${DEBUG}" != "true" ]; then INSTALL_TYPE="install-lib"; else INSTALL_TYPE="install"; fi
+
     # Install 32-bit if not WoW64
     if [ "${USE_WOW64}" != "true" ]; then
         cd build32
-        make -j"$(nproc)" install-lib
+        make -j$(($(nproc) + 1)) "${INSTALL_TYPE}"
     fi
 
     # Install 64-bit
     cd "${BUILD_DIR}/build64"
-    make -j"$(nproc)" install-lib
+    make -j$(($(nproc) + 1)) "${INSTALL_TYPE}"
 
-    Info "Stripping debug symbols from libraries"
-    find "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"{,64} \
-        -type f '(' -iname '*.a' -o -iname '*.dll' -o -iname '*.so' -o -iname '*.sys' -o -iname '*.drv' -o -iname '*.exe' ')' \
-        -print0 | xargs -0 strip --strip-unneeded 2>/dev/null || true
+    if [ "${DEBUG}" != "true" ]; then
+        Info "Stripping debug symbols from libraries"
+        find "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"{,64} \
+            -type f '(' -iname '*.a' -o -iname '*.dll' -o -iname '*.so' -o -iname '*.sys' -o -iname '*.drv' -o -iname '*.exe' ')' \
+            -print0 | xargs -0 strip --strip-unneeded 2>/dev/null || true
+    fi
 
     rm -rf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/{include,share/{applications,man}}
 
@@ -124,17 +128,20 @@ package_wine() {
     [ -z "${RELEASE_VERSION}" ] && RELEASE_VERSION="1"
 
     mv "${BUILD_OUT_TMP_DIR}" "wine-osu"
-
-    # Launch fonts buils script
-    Info "Compiling and installing fonts from Proton..."
-    cd "${WINE_ROOT}/protonfonts"
-    WINE_FONTS_DESTDIR="${BUILD_DIR}/wine-osu/share/wine/fonts" make all-dist
-    cd "${BUILD_DIR}"
+    
+    if [ "${BUILD_FONTS}" = "true" ]; then
+        # Launch fonts build script
+        Info "Compiling and installing fonts from Proton..."
+        cd "${WINE_ROOT}/protonfonts"
+        WINE_FONTS_DESTDIR="${BUILD_DIR}/wine-osu/share/wine/fonts" make all-dist
+        cd "${BUILD_DIR}"
+    fi
 
     Info "Creating and compressing archives..."
-    XZ_OPT="-9 -T0 " tar -Jcf "wine-osu-winello-${WINE_VERSION}${WOW_NAME:-}-${RELEASE_VERSION}-x86_64.tar.xz" \
+    tar -I "zstd --threads=0 --auto-threads=logical --sparse -z -q -19" -cf \
+        "wine-osu-winello-${WINE_VERSION}${EXTRA_NAME:-}-${RELEASE_VERSION}-x86_64.tar.zst" \
         --xattrs --numeric-owner --owner=0 --group=0 wine-osu
-    mv "wine-osu-winello-${WINE_VERSION}${WOW_NAME:-}-${RELEASE_VERSION}-x86_64.tar.xz" "${WINE_ROOT}"
+    mv "wine-osu-winello-${WINE_VERSION}${EXTRA_NAME:-}-${RELEASE_VERSION}-x86_64.tar.zst" "${WINE_ROOT}"
 }
 
 ## ------------------------------------------------------------
@@ -142,7 +149,10 @@ package_wine() {
 ## ------------------------------------------------------------
 
 build_setup() {
-    if [ "$USE_WOW64" = "true" ]; then WOW_NAME="-wow64"; fi
+    EXTRA_NAME=""
+    if [ "${BUILD_FONTS}" = "true" ]; then EXTRA_NAME+="-fonts"; fi
+    if [ "${USE_WOW64}" = "true" ]; then EXTRA_NAME+="-wow64"; fi
+    if [ "${DEBUG}" != "true" ]; then EXTRA_NAME+="-debug"; fi
     BUILD_OUT_TMP_DIR="wine-winello-build"
 
     # Ensure source directory exists
@@ -151,28 +161,37 @@ build_setup() {
     WINE_BUILD_OPTIONS=(
         --prefix="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"
         --disable-tests
+        --disable-winemenubuilder
+        --disable-win16
         --with-x
         --with-gstreamer
         --with-ffmpeg
         --with-wayland
-        --enable-silent-rules
         --without-oss
         --without-coreaudio
         --without-cups
         --without-sane
+        --without-gphoto
+        --without-pcsclite
+        --without-pcap
+        --without-capi
+        --without-v4l2
+        --without-netapi
+    )
+
+    if [ "${DEBUG}" = "true" ]; then 
+        WINE_BUILD_OPTIONS+=(--enable-build-id)
+    fi
+
+    WINE_64_BUILD_OPTIONS=(
+        --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib64"
     )
 
     # Configure WoW64 build options
     if [ "${USE_WOW64}" = "true" ]; then
-        WINE_64_BUILD_OPTIONS=(
-            --enable-archs="x86_64,i386"
-            --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib64"
-        )
+        WINE_64_BUILD_OPTIONS+=(--enable-archs="x86_64,i386")
     else
-        WINE_64_BUILD_OPTIONS=(
-            --enable-win64
-            --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib64"
-        )
+        WINE_64_BUILD_OPTIONS+=(--enable-win64)
     fi
 
     WINE_32_BUILD_OPTIONS=(
@@ -196,17 +215,32 @@ compiler_setup() {
     export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
 
     # Compiler flags
-    export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-    _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O3 -fno-strict-aliasing -fno-semantic-interposition -fgnuc-version=5.99.99 \
-                    -fomit-frame-pointer -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
-    _native_common_cflags="-static-libgcc -static-libstdc++"
+    if [ "$DEBUG" != "true" ]; then
+        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
+        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse -fno-semantic-interposition -fgnuc-version=5.99.99 \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+        _native_common_cflags="-static-libgcc -static-libstdc++"
 
-    _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
-    _LD_FLAGS="${_GCC_FLAGS} -Wl,-O2,--sort-common,--as-needed"
+        _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
+        _LD_FLAGS="${_GCC_FLAGS} -Wl,-O2,--sort-common,--as-needed"
 
-    _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-    _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
-    #_CROSS_LD_FLAGS="${_CROSS_FLAGS} -Wl,/FILEALIGN:4096,/OPT:REF,/OPT:ICF"
+        _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
+        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
+        #_CROSS_LD_FLAGS="${_CROSS_FLAGS} -Wl,/FILEALIGN:4096,/OPT:REF,/OPT:ICF"
+    else
+        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
+        _common_cflags="-march=nocona -mtune=core-avx2 -mavx -pipe -Og -ggdb -gdwarf-4 -fno-strict-aliasing -fwrapv -mfpmath=sse \
+                        -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections -fgnuc-version=5.99.99 \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+        _native_common_cflags="-static-libgcc -static-libstdc++"
+
+        _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
+        _LD_FLAGS="${_GCC_FLAGS} -Wl,-O2,--sort-common,--as-needed"
+
+        _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
+        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
+        #_CROSS_LD_FLAGS="${_CROSS_FLAGS} -Wl,/FILEALIGN:4096,/OPT:REF,/OPT:ICF"
+    fi
 
     # Compiler settings
     export CC="ccache clang"
@@ -300,6 +334,8 @@ main() {
     # Build configuration
     USE_WOW64="${1:-true}"
     STAGING_ARGS="${STAGING_ARGS:---all}"
+    BUILD_FONTS="${2:-true}"
+    DEBUG="${3:-false}"
 
     build_setup
     compiler_setup
@@ -403,6 +439,9 @@ main() {
             Error "Failed to apply patch: ${patch}"
     done
 
+    ## Clean up .orig files if patches succeeded
+    find "${BUILD_DIR}/wine"/ -iregex ".*orig" -execdir rm '{''}' '+' || true
+
     # Initialize git for make_makefiles
     git config commit.gpgsign false
     git config user.email "wine@build.dev"
@@ -435,5 +474,9 @@ main() {
     Info "Build completed successfully!"
 }
 
-main "$@" true
-# main "$@" # do wow64 too?
+# option 1: wow64 (empty/default = true)
+# option 2: fonts (empty/default = true)
+# option 3: debug (empty/default = false)
+
+main "$@" false false true
+# main "$@" true # do wow64 too?
