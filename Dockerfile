@@ -196,6 +196,13 @@ RUN apt-get clean && \
 
 FROM manual-deps AS temp-layer
 
+# thank god this exists
+RUN wget -O gcc-mingw.tar.xz \
+    https://github.com/xpack-dev-tools/mingw-w64-gcc-xpack/releases/download/v14.2.0-1/xpack-mingw-w64-gcc-14.2.0-1-linux-x64.tar.gz && \
+    tar -xf gcc-mingw.tar.xz -C /usr/local && \
+    rm -rf /usr/local/gcc-mingw && \
+    mv /usr/local/xpack-mingw-w64-gcc-14.2.0-1 /usr/local/gcc-mingw
+
 COPY build_wine.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/build_wine.sh
 WORKDIR /wine

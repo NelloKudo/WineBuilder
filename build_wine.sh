@@ -45,6 +45,34 @@ _staging_patcher() {
     fi || Error "Failed to apply Wine-Staging patches"
 }
 
+_custompatcher() {
+    patchlist=()
+    #if [ "${USE_LTO}" = "true" ]; then patchlist+=("${srcdir}"/lto-fixup.patch); fi
+
+    pattern=("(" "-regex" ".*\.patch")
+
+    if [ "${USE_WOW64}" = "true" ]; then
+        pattern+=(")" "-a" "(" "-not" "-regex" ".*\.3264\.patch")
+    fi
+
+    pattern+=(")")
+
+    mapfile -t patchlist_tmp < <(find "${patches_dir}" -type f "${pattern[@]}" | LC_ALL=C sort -f)
+
+    patchlist+=("${patchlist_tmp[@]}")
+
+    for patch in "${patchlist[@]}"; do
+        [ -f "${patch}" ] || continue
+        Info "Applying patch: $(basename "${patch}")"
+        git apply --ignore-whitespace --verbose "${patch}" &>>"${WINE_ROOT}/patches.log" || \
+            patch -Np1 -i "${patch}" &>>"${WINE_ROOT}/patches.log" || \
+                Error "Failed to apply patch: ${patch}"
+    done
+
+    ## Clean up .orig files if patches succeeded
+    find "${BUILD_DIR}/wine"/ -iregex ".*orig" -execdir rm '{''}' '+' || true
+}
+
 build_wine() {
     Info "Starting Wine build process..."
 
@@ -138,7 +166,7 @@ package_wine() {
     fi
 
     Info "Creating and compressing archives..."
-    tar -I "zstd --threads=0 --auto-threads=logical --sparse -z -q -19" -cf \
+    tar -I "zstd -19" -cf \
         "wine-osu-winello-${WINE_VERSION}${EXTRA_NAME:-}-${RELEASE_VERSION}-x86_64.tar.zst" \
         --xattrs --numeric-owner --owner=0 --group=0 wine-osu
     mv "wine-osu-winello-${WINE_VERSION}${EXTRA_NAME:-}-${RELEASE_VERSION}-x86_64.tar.zst" "${WINE_ROOT}"
@@ -207,15 +235,15 @@ build_setup() {
 compiler_setup() {
     export PKG_CONFIG="pkg-config"
 
-    # LLVM-MinGW configuration
-    export LLVM_MINGW_PATH="/usr/local/llvm-mingw"
-    export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
-
-    export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
-    export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
-
     # Compiler flags
     if [ "$DEBUG" != "true" ]; then
+        # LLVM-MinGW configuration
+        export LLVM_MINGW_PATH="/usr/local/llvm-mingw"
+        export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
+
+        export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+
         export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
         _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse -fno-semantic-interposition -fgnuc-version=5.99.99 \
                         -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
@@ -227,10 +255,30 @@ compiler_setup() {
         _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
         _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
         #_CROSS_LD_FLAGS="${_CROSS_FLAGS} -Wl,/FILEALIGN:4096,/OPT:REF,/OPT:ICF"
+
+        # Compiler settings
+        export CC="ccache clang"
+        export CXX="ccache clang++"
+        export CROSSCC="ccache x86_64-w64-mingw32-clang"
+        export CROSSCC_X32="ccache i686-w64-mingw32-clang"
+        export CROSSCXX_X32="ccache i686-w64-mingw32-clang++"
+        export CROSSCC_X64="ccache x86_64-w64-mingw32-clang"
+        export CROSSCXX_X64="ccache x86_64-w64-mingw32-clang++"
     else
-        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-        _common_cflags="-march=nocona -mtune=core-avx2 -mavx -pipe -Og -ggdb -gdwarf-4 -fno-strict-aliasing -fwrapv -mfpmath=sse \
-                        -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections -fgnuc-version=5.99.99 \
+        # llvm-mingw is a bit broken for debug
+        if [ -n "$(command -v i686-w64-mingw32-clang)" ]; then
+            PATH="${PATH//"$(dirname "$(command -v i686-w64-mingw32-clang)")":/}"
+        fi
+
+        GCC_MINGW_PATH="/usr/local/gcc-mingw"
+        export PATH="${GCC_MINGW_PATH}/bin:${PATH}"
+
+        export LIBRARY_PATH="/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+
+        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
+        _common_cflags="-march=nocona -mtune=core-avx2 -mavx -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
+                        -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
                         -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
         _native_common_cflags="-static-libgcc -static-libstdc++"
 
@@ -239,29 +287,29 @@ compiler_setup() {
 
         _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
         _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
-        #_CROSS_LD_FLAGS="${_CROSS_FLAGS} -Wl,/FILEALIGN:4096,/OPT:REF,/OPT:ICF"
+
+        export CC="ccache gcc"
+        export CXX="ccache g++"
+        export CROSSCC="ccache x86_64-w64-mingw32-gcc"
+        export CROSSCC_X32="ccache i686-w64-mingw32-gcc"
+        export CROSSCXX_X32="ccache i686-w64-mingw32-g++"
+        export CROSSCC_X64="ccache x86_64-w64-mingw32-gcc"
+        export CROSSCXX_X64="ccache x86_64-w64-mingw32-g++"
     fi
 
-    # Compiler settings
-    export CC="ccache clang"
-    export CXX="ccache clang++"
-    export CROSSCC="ccache x86_64-w64-mingw32-clang"
-    export CROSSCC_X32="ccache i686-w64-mingw32-clang"
-    export CROSSCXX_X32="ccache i686-w64-mingw32-clang++"
-    export CROSSCC_X64="ccache x86_64-w64-mingw32-clang"
-    export CROSSCXX_X64="ccache x86_64-w64-mingw32-clang++"
-
-    export i386_CC="${CROSSCC_X32}"
-    export x86_64_CC="${CROSSCC_X64}"
-
     # Compiler and linker flags
-    export CFLAGS="${_GCC_FLAGS}"
+    export CFLAGS="${_GCC_FLAGS} -std=gnu17"
     export CXXFLAGS="${_GCC_FLAGS}"
     export LDFLAGS="${_LD_FLAGS}"
 
-    export CROSSCFLAGS="${_CROSS_FLAGS}"
+    export CROSSCFLAGS="${_CROSS_FLAGS} -std=gnu17"
     export CROSSCXXFLAGS="${_CROSS_FLAGS}"
     export CROSSLDFLAGS="${_CROSS_LD_FLAGS}"
+
+    export i386_CC="${CROSSCC_X32}"
+    export x86_64_CC="${CROSSCC_X64}"
+    export i386_CFLAGS="${CROSSCFLAGS}"
+    export x86_64_CFLAGS="${CROSSCFLAGS}"
 
     WINE_64_BUILD_OPTIONS+=(--with-mingw="$CROSSCC_X64")
     WINE_32_BUILD_OPTIONS+=(--with-mingw="$CROSSCC_X32")
@@ -297,11 +345,6 @@ patch_setup() {
             fi
 
             git reset --hard "${_git_tag}" || Error "Invalid patchset tag"
-
-            WINE_VERSION="$(cat "${patches_dir}/wine-commit")"
-            STAGING_VERSION="$(cat "${patches_dir}/staging-commit")"
-
-            [ -r "${patches_dir}/staging-exclude" ] && STAGING_ARGS+=" $(cat "${patches_dir}/staging-exclude")"
         else
             tar xf "$(find "${WINE_ROOT}/osu-misc/" -type f -iregex ".*${PATCHSET}.*")" -C "${patches_dir}" ||
                 Error "Invalid patchset specified"
@@ -309,6 +352,10 @@ patch_setup() {
     else
         patches_dir="${WINE_ROOT}/custompatches"
     fi
+
+    [ -r "${patches_dir}/staging-exclude" ] && STAGING_ARGS+=" $(cat "${patches_dir}/staging-exclude")"
+    [ -r "${patches_dir}/wine-commit" ] && WINE_VERSION="$(cat "${patches_dir}/wine-commit")"
+    [ -r "${patches_dir}/staging-commit" ] && STAGING_VERSION="$(cat "${patches_dir}/staging-commit")"
 }
 
 ## ------------------------------------------------------------
@@ -327,7 +374,7 @@ main() {
     RELEASE_VERSION="${RELEASE_VERSION:-}"
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
-    PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
+    PATCHSET="" # leave empty for loose patches in custompatches/
     PATCHSET_REPO="${PATCHSET_REPO:-https://github.com/whrvt/wine-osu-patches.git}"
     TAG_FILTER="${TAG_FILTER:-winello*}"
 
@@ -427,20 +474,9 @@ main() {
 
     # Apply patches
     _staging_patcher
-
     cd "${BUILD_DIR}/wine"
-
     # Apply custom patches
-    mapfile -t patchlist < <(find "${patches_dir}" -type f -regex ".*\.patch" | LC_ALL=C sort -f)
-    for patch in "${patchlist[@]}"; do
-        [ -f "${patch}" ] || continue
-        Info "Applying patch: $(basename "${patch}")"
-        patch -Np1 -i "${patch}" >>"${WINE_ROOT}/patches.log" ||
-            Error "Failed to apply patch: ${patch}"
-    done
-
-    ## Clean up .orig files if patches succeeded
-    find "${BUILD_DIR}/wine"/ -iregex ".*orig" -execdir rm '{''}' '+' || true
+    _custompatcher
 
     # Initialize git for make_makefiles
     git config commit.gpgsign false
