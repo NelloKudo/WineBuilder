@@ -128,28 +128,35 @@ package_wine() {
 
     if [ "${DEBUG}" != "true" ]; then INSTALL_TYPE="install-lib"; else INSTALL_TYPE="install"; fi
 
+    INSTALLCMD="prefix=${BUILD_DIR}/${BUILD_OUT_TMP_DIR} \
+                libdir=${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib \
+                dlldir=${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib/wine ${INSTALL_TYPE}"
+
     # Install 32-bit if not WoW64
     if [ "${USE_WOW64}" != "true" ]; then
-        cd build32
-        make -j$(($(nproc) + 1)) "${INSTALL_TYPE}"
+        cd "${BUILD_DIR}/build32"
+        make -j$(($(nproc) + 1)) "${INSTALLCMD}"
     fi
 
     # Install 64-bit
     cd "${BUILD_DIR}/build64"
-    make -j$(($(nproc) + 1)) "${INSTALL_TYPE}"
+    make -j$(($(nproc) + 1)) "${INSTALLCMD}"
+
+    ln -srf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"{,64}
+    ln -srf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"{,32}
+
+    if [ ! -f "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine64 ]; then
+        ln -srf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine{,64}
+    fi
 
     if [ "${DEBUG}" != "true" ]; then
         Info "Stripping debug symbols from libraries"
-        find "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"{,64} \
+        find "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib/" \
             -type f '(' -iname '*.a' -o -iname '*.dll' -o -iname '*.so' -o -iname '*.sys' -o -iname '*.drv' -o -iname '*.exe' ')' \
             -print0 | xargs -0 strip --strip-unneeded 2>/dev/null || true
     fi
 
     rm -rf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/{include,share/{applications,man}}
-
-    if [ "${USE_WOW64}" = "true" ]; then
-        ln -srf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine{,64}
-    fi
 
     # Create final package
     cd "${BUILD_DIR}"
@@ -212,7 +219,7 @@ build_setup() {
     fi
 
     WINE_64_BUILD_OPTIONS=(
-        --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib64"
+        --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
     )
 
     # Configure WoW64 build options
