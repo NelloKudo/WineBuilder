@@ -128,24 +128,31 @@ package_wine() {
 
     if [ "${DEBUG}" != "true" ]; then INSTALL_TYPE="install-lib"; else INSTALL_TYPE="install"; fi
 
-    INSTALLCMD="prefix=${BUILD_DIR}/${BUILD_OUT_TMP_DIR} \
-                libdir=${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib \
-                dlldir=${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib/wine ${INSTALL_TYPE}"
+    INSTALLCMD=(
+        prefix="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"
+        libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
+        dlldir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib/wine"
+        "${INSTALL_TYPE}"
+    )
 
     # Install 32-bit if not WoW64
     if [ "${USE_WOW64}" != "true" ]; then
         cd "${BUILD_DIR}/build32"
-        make -j$(($(nproc) + 1)) "${INSTALLCMD}"
+        make -j$(($(nproc) + 1)) "${INSTALLCMD[@]}"
     fi
 
     # Install 64-bit
     cd "${BUILD_DIR}/build64"
-    make -j$(($(nproc) + 1)) "${INSTALLCMD}"
+    make -j$(($(nproc) + 1)) "${INSTALLCMD[@]}"
 
     ln -srf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"{,64}
     ln -srf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"{,32}
 
-    if [ ! -f "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine64 ]; then
+    if [ ! -f "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine ] && [ -f "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine64 ]; then
+        ln -srf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine{64,}
+    fi
+
+    if [ ! -f "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine64 ] && [ -f "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine ]; then
         ln -srf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/bin/wine{,64}
     fi
 
@@ -163,7 +170,7 @@ package_wine() {
     [ -z "${RELEASE_VERSION}" ] && RELEASE_VERSION="1"
 
     mv "${BUILD_OUT_TMP_DIR}" "wine-osu"
-    
+
     if [ "${BUILD_FONTS}" = "true" ]; then
         # Launch fonts build script
         Info "Compiling and installing fonts from Proton..."
@@ -214,7 +221,7 @@ build_setup() {
         --without-netapi
     )
 
-    if [ "${DEBUG}" = "true" ]; then 
+    if [ "${DEBUG}" = "true" ]; then
         WINE_BUILD_OPTIONS+=(--enable-build-id)
     fi
 
@@ -252,15 +259,15 @@ compiler_setup() {
         export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
 
         export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse -fno-semantic-interposition -fgnuc-version=5.99.99 \
+        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse -fno-semantic-interposition -fgnuc-version=5.99.99 -fdata-sections -ffunction-sections \
                         -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
         _native_common_cflags="-static-libgcc -static-libstdc++"
 
         _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
-        _LD_FLAGS="${_GCC_FLAGS} -Wl,-O2,--sort-common,--as-needed"
+        _LD_FLAGS="${_GCC_FLAGS} -Wl,-O2,--sort-common,--as-needed,--gc-sections"
 
         _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
+        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096,--gc-sections"
         #_CROSS_LD_FLAGS="${_CROSS_FLAGS} -Wl,/FILEALIGN:4096,/OPT:REF,/OPT:ICF"
 
         # Compiler settings
@@ -315,11 +322,11 @@ compiler_setup() {
 
     export i386_CC="${CROSSCC_X32}"
     export x86_64_CC="${CROSSCC_X64}"
-    export i386_CFLAGS="${CROSSCFLAGS}"
-    export x86_64_CFLAGS="${CROSSCFLAGS}"
+    export i386_CFLAGS="${CROSSCFLAGS} -std=gnu17"
+    export x86_64_CFLAGS="${CROSSCFLAGS} -std=gnu17"
 
-    WINE_64_BUILD_OPTIONS+=(--with-mingw="$CROSSCC_X64")
-    WINE_32_BUILD_OPTIONS+=(--with-mingw="$CROSSCC_X32")
+    WINE_64_BUILD_OPTIONS+=(--with-mingw="${CROSSCC_X64}")
+    WINE_32_BUILD_OPTIONS+=(--with-mingw="${CROSSCC_X32}")
 }
 
 ## ------------------------------------------------------------
