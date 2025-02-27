@@ -160,7 +160,7 @@ package_wine() {
         Info "Stripping debug symbols from libraries"
         find "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib/" \
             -type f '(' -iname '*.a' -o -iname '*.dll' -o -iname '*.so' -o -iname '*.sys' -o -iname '*.drv' -o -iname '*.exe' ')' \
-            -print0 | xargs -0 strip --strip-unneeded 2>/dev/null || true
+            -print0 | xargs -0 strip -s 2>/dev/null || true
     fi
 
     rm -rf "${BUILD_DIR}/${BUILD_OUT_TMP_DIR}"/{include,share/{applications,man}}
@@ -181,9 +181,9 @@ package_wine() {
 
     Info "Creating and compressing archives..."
     tar -I "zstd -10" -cf \
-        "wine-osu-winello-${WINE_VERSION}${EXTRA_NAME:-}-${RELEASE_VERSION}-x86_64.tar.zst" \
+        "wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.zst" \
         --xattrs --numeric-owner --owner=0 --group=0 wine-osu
-    mv "wine-osu-winello-${WINE_VERSION}${EXTRA_NAME:-}-${RELEASE_VERSION}-x86_64.tar.zst" "${WINE_ROOT}"
+    mv "wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.zst" "${WINE_ROOT}"
 }
 
 ## ------------------------------------------------------------
@@ -491,6 +491,12 @@ main() {
     cd "${BUILD_DIR}/wine"
     # Apply custom patches
     _custompatcher
+
+    if [ "${DEBUG}" != "true" ]; then # let wine strip on install
+        awk -i inplace '/STRIPPROG=/ { sub(/ %s/, " %s -s") }1' "${BUILD_DIR}/wine/tools/makedep.c"
+        # shellcheck disable=SC2016
+        sed -i 's|stripcmd=$stripprog|stripcmd="$stripprog -s"|g' "${BUILD_DIR}/wine/tools/install-sh"
+    fi
 
     # Initialize git for make_makefiles
     git config commit.gpgsign false

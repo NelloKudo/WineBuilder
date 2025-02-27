@@ -2,7 +2,7 @@
 
 mkdir -p {custompatches,ccache,output,protonfonts,sources}
 
-docker build --progress=plain -t wine-builder .
+docker buildx build --progress=plain -t wine-builder .
 
 docker run --rm -it \
     --name wine-builder \
@@ -17,3 +17,5 @@ docker run --rm -it \
 echo "FIXME: fixing up ownership of build files..."
 
 sudo chown -R "$(id -u)":"$(id -g)" output/
+
+mv output/*.tar.* .
