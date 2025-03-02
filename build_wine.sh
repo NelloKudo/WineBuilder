@@ -64,9 +64,9 @@ _custompatcher() {
     for patch in "${patchlist[@]}"; do
         [ -f "${patch}" ] || continue
         Info "Applying patch: $(basename "${patch}")"
-        git apply --ignore-whitespace --verbose "${patch}" &>>"${WINE_ROOT}/patches.log" || \
-            patch -Np1 -i "${patch}" &>>"${WINE_ROOT}/patches.log" || \
-                Error "Failed to apply patch: ${patch}"
+        #git apply --ignore-whitespace --verbose "${patch}" &>>"${WINE_ROOT}/patches.log" || \
+        patch -Np1 -i "${patch}" &>>"${WINE_ROOT}/patches.log" || \
+            Error "Failed to apply patch: ${patch}"
     done
 
     ## Clean up .orig files if patches succeeded
@@ -368,8 +368,8 @@ patch_setup() {
     fi
 
     [ -r "${patches_dir}/staging-exclude" ] && STAGING_ARGS+=" $(cat "${patches_dir}/staging-exclude")"
-    [ -r "${patches_dir}/wine-commit" ] && WINE_VERSION="$(cat "${patches_dir}/wine-commit")"
-    [ -r "${patches_dir}/staging-commit" ] && STAGING_VERSION="$(cat "${patches_dir}/staging-commit")"
+    [ -r "${patches_dir}/wine-commit" ] && [ -z "${WINE_VERSION}" ] && WINE_VERSION="$(cat "${patches_dir}/wine-commit")"
+    [ -r "${patches_dir}/staging-commit" ] && [ -z "${STAGING_VERSION}" ] && STAGING_VERSION="$(cat "${patches_dir}/staging-commit")"
 }
 
 ## ------------------------------------------------------------
@@ -398,6 +398,11 @@ main() {
     BUILD_FONTS="${2:-true}"
     DEBUG="${3:-false}"
 
+    WINE_URL="https://github.com/wine-mirror/wine.git"
+    WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
+    STAGING_URL="https://github.com/wine-staging/wine-staging.git"
+    STAGING_FALLBACK_URL="https://gitlab.winehq.org/wine/wine-staging.git"
+
     build_setup
     compiler_setup
     patch_setup
@@ -409,18 +414,18 @@ main() {
     Info "Setting up Wine source code..."
     mkdir -p "${SOURCE_DIR}"
 
+    git config --global http.lowSpeedLimit 1000
+    git config --global http.lowSpeedTime 600
+
     # Initialize/update Wine source
     if [ ! -d "${SOURCE_DIR}/wine/.git" ]; then
         Info "Cloning Wine repository..."
         cd "${SOURCE_DIR}"
-        git clone --bare https://github.com/wine-mirror/wine wine-bare
-        git clone wine-bare wine
-        cd wine
-        git remote set-url origin https://github.com/wine-mirror/wine
+        git clone "${WINE_URL}" wine
     else
         Info "Updating Wine repository..."
         cd "${SOURCE_DIR}/wine"
-        git remote set-url origin https://github.com/wine-mirror/wine
+        git remote set-url origin "${WINE_URL}"
         git fetch origin
     fi
 
@@ -445,16 +450,13 @@ main() {
 
     # Initialize/update Wine-Staging source
     if [ ! -d "${SOURCE_DIR}/wine-staging/.git" ]; then
-        Info "Cloning Wine-Staging repository..."
+        Info "Cloning Wine-staging repository..."
         cd "${SOURCE_DIR}"
-        git clone --bare https://github.com/wine-staging/wine-staging wine-staging-bare
-        git clone wine-staging-bare wine-staging
-        cd wine-staging
-        git remote set-url origin https://github.com/wine-staging/wine-staging
+        git clone "${STAGING_URL}" wine-staging
     else
-        Info "Updating Wine-Staging repository..."
+        Info "Updating Wine-staging repository..."
         cd "${SOURCE_DIR}/wine-staging"
-        git remote set-url origin https://github.com/wine-staging/wine-staging
+        git remote set-url origin "${STAGING_URL}"
         git fetch origin
     fi
 
