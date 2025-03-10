@@ -180,10 +180,10 @@ package_wine() {
     fi
 
     Info "Creating and compressing archives..."
-    tar -I "zstd -10" -cf \
-        "wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.zst" \
+    tar -cJf \
+        "wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz" \
         --xattrs --numeric-owner --owner=0 --group=0 wine-osu
-    mv "wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.zst" "${WINE_ROOT}"
+    mv "wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz" "${WINE_ROOT}"
 }
 
 ## ------------------------------------------------------------
