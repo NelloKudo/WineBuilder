@@ -78,7 +78,8 @@ ENV FFMPEG_VERSION="7.0.2" \
     LLVM_MINGW_VERSION="20241030" \
     XZ_VERSION="5.6.3" \
     LIBUNWIND_VERSION="1.8.1" \
-    GCC_MINGW_VERSION="14.2.0-1"
+    GCC_MINGW_VERSION="14.2.0-1" \
+    LIBGLVND_VERSION="1.7.0"
 
 RUN wget -O llvm-mingw-${LLVM_MINGW_VERSION}.tar.xz \
     https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VERSION}/llvm-mingw-${LLVM_MINGW_VERSION}-msvcrt-ubuntu-20.04-x86_64.tar.xz && \
@@ -94,7 +95,7 @@ RUN wget -O libxkbcommon.tar.xz https://xkbcommon.org/download/libxkbcommon-${LI
     export LIBRARY_PATH="/usr/local/llvm-mingw/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}" && \
     export LD_LIBRARY_PATH="/usr/local/llvm-mingw/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}" && \
     # 64-bit
-    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
+    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
     export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
     LDFLAGS="-fuse-ld=lld" meson setup build_x86_64 -Denable-docs=false \
@@ -104,7 +105,7 @@ RUN wget -O libxkbcommon.tar.xz https://xkbcommon.org/download/libxkbcommon-${LI
     ninja -C build_x86_64 install && \
     rm -rf build_x86_64 && \
     # 32-bit
-    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'i386'\nendian = 'little'" > /opt/build32-conf.txt && \
+    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'x86'\nendian = 'little'" > /opt/build32-conf.txt && \
     export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
     CFLAGS="-m32" LDFLAGS="-m32 -fuse-ld=lld" meson setup build_i386 -Denable-docs=false \
@@ -161,6 +162,31 @@ RUN wget -O ffmpeg.tar.xz https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.t
     make install && \
     cd .. && \
     rm -rf ffmpeg-${FFMPEG_VERSION}
+
+RUN wget -O libglvnd.tar.gz https://gitlab.freedesktop.org/glvnd/libglvnd/-/archive/v$LIBGLVND_VERSION/libglvnd-v$LIBGLVND_VERSION.tar.gz && \
+    tar -xf libglvnd.tar.gz && \
+    cd libglvnd-v${LIBGLVND_VERSION} && \
+    export LIBRARY_PATH="/usr/local/llvm-mingw/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}" && \
+    export LD_LIBRARY_PATH="/usr/local/llvm-mingw/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}" && \
+    # 64-bit
+    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
+    export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
+    LDFLAGS="-fuse-ld=lld" meson setup build_x86_64 -Dgles1=false \
+        --prefix=/usr/local/x86_64 --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu \
+        --native-file /opt/build64-conf.txt && \
+    ninja -C build_x86_64 && \
+    ninja -C build_x86_64 install && \
+    rm -rf build_x86_64 && \
+    # 32-bit
+    echo "[binaries]\nc = ['clang','-m32']\ncpp = ['clang++','-m32']\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'x86'\nendian = 'little'" > /opt/build32-conf.txt && \
+    export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
+    CFLAGS="-m32" LDFLAGS="-m32 -fuse-ld=lld" meson setup build_i386 -Dheaders=false -Dgles1=false \
+        --prefix=/usr/local/i386 --libdir=/usr/local/i386/lib/i386-linux-gnu \
+        --native-file /opt/build32-conf.txt && \
+    ninja -C build_i386 && \
+    ninja -C build_i386 install
 
 ENV CC="clang" \
     CXX="clang++" \

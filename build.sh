@@ -12,7 +12,7 @@ docker run --rm -it \
     --mount type=bind,source="$(pwd)"/protonfonts,target=/wine/protonfonts \
     --mount type=bind,source="$(pwd)"/ccache,target=/root/.ccache \
     --mount type=bind,source="$(pwd)"/sources,target=/wine/sources \
-    wine-builder
+    wine-builder || { echo "failed" && exit 1 ; }
 
 echo "FIXME: fixing up ownership of build files..."
 

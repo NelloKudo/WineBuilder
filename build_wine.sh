@@ -250,25 +250,13 @@ compiler_setup() {
     export PKG_CONFIG="pkg-config"
 
     # Compiler flags
-    if [ "$DEBUG" != "true" ]; then
+    if [ "$USE_LLVM_MINGW" = "true" ] && [ "$DEBUG" != "true" ]; then # llvm-mingw is a bit broken for debug
         # LLVM-MinGW configuration
         export LLVM_MINGW_PATH="/usr/local/llvm-mingw"
         export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
 
         export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
         export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
-
-        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse -fno-semantic-interposition -fgnuc-version=5.99.99 -fdata-sections -ffunction-sections \
-                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
-        _native_common_cflags="-static-libgcc -static-libstdc++"
-
-        _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
-        _LD_FLAGS="${_GCC_FLAGS} -Wl,-O2,--sort-common,--as-needed,--gc-sections"
-
-        _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096,--gc-sections"
-        #_CROSS_LD_FLAGS="${_CROSS_FLAGS} -Wl,/FILEALIGN:4096,/OPT:REF,/OPT:ICF"
 
         # Compiler settings
         export CC="ccache clang"
@@ -278,8 +266,12 @@ compiler_setup() {
         export CROSSCXX_X32="ccache i686-w64-mingw32-clang++"
         export CROSSCC_X64="ccache x86_64-w64-mingw32-clang"
         export CROSSCXX_X64="ccache x86_64-w64-mingw32-clang++"
+
+        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse -fno-semantic-interposition -fgnuc-version=5.99.99 -fdata-sections -ffunction-sections \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+
+        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096,--gc-sections"
     else
-        # llvm-mingw is a bit broken for debug
         if [ -n "$(command -v i686-w64-mingw32-clang)" ]; then
             PATH="${PATH//"$(dirname "$(command -v i686-w64-mingw32-clang)")":/}"
         fi
@@ -290,18 +282,6 @@ compiler_setup() {
         export LIBRARY_PATH="/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
         export LD_LIBRARY_PATH="/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
 
-        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
-        _common_cflags="-march=nocona -mtune=core-avx2 -mavx -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
-                        -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
-                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-        _native_common_cflags="-static-libgcc -static-libstdc++"
-
-        _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
-        _LD_FLAGS="${_GCC_FLAGS} -Wl,-O2,--sort-common,--as-needed"
-
-        _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
-
         export CC="ccache gcc"
         export CXX="ccache g++"
         export CROSSCC="ccache x86_64-w64-mingw32-gcc"
@@ -309,7 +289,32 @@ compiler_setup() {
         export CROSSCXX_X32="ccache i686-w64-mingw32-g++"
         export CROSSCC_X64="ccache x86_64-w64-mingw32-gcc"
         export CROSSCXX_X64="ccache x86_64-w64-mingw32-g++"
+
+        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse -fno-semantic-interposition \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+
+        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
     fi
+
+    _native_common_cflags="-fdata-sections -ffunction-sections -static-libgcc -static-libstdc++"
+
+    if [ "$DEBUG" = "true" ]; then
+        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
+        # overwrite with gcc debug stuff
+        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
+                        -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+
+        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O2,--sort-common,--as-needed"
+
+    else
+        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
+
+        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O2,--sort-common,--as-needed,--gc-sections"
+    fi
+
+    _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
+    _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
 
     # Compiler and linker flags
     export CFLAGS="${_GCC_FLAGS} -std=gnu17"
@@ -391,12 +396,13 @@ main() {
     PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
     PATCHSET_REPO="${PATCHSET_REPO:-https://github.com/whrvt/wine-osu-patches.git}"
     TAG_FILTER="${TAG_FILTER:-winello*}"
+    STAGING_ARGS="${STAGING_ARGS:---all}"
 
     # Build configuration
     USE_WOW64="${1:-true}"
-    STAGING_ARGS="${STAGING_ARGS:---all}"
     BUILD_FONTS="${2:-true}"
     DEBUG="${3:-false}"
+    USE_LLVM_MINGW="${4:-false}"
 
     WINE_URL="https://github.com/wine-mirror/wine.git"
     WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
@@ -535,6 +541,7 @@ main() {
 # option 1: wow64 (empty/default = true)
 # option 2: fonts (empty/default = true)
 # option 3: debug (empty/default = false)
+# option 4: llvm-mingw (empty/default = false)
 
-main "$@" true
-# main "$@" true # do wow64 too?
+main "$@"
+# main "$@" false # do lib32 too?
