@@ -373,8 +373,9 @@ patch_setup() {
     fi
 
     [ -r "${patches_dir}/staging-exclude" ] && STAGING_ARGS+=" $(cat "${patches_dir}/staging-exclude")"
-    [ -r "${patches_dir}/wine-commit" ] && [ -z "${WINE_VERSION}" ] && WINE_VERSION="$(cat "${patches_dir}/wine-commit")"
-    [ -r "${patches_dir}/staging-commit" ] && [ -z "${STAGING_VERSION}" ] && STAGING_VERSION="$(cat "${patches_dir}/staging-commit")"
+    { [ -r "${patches_dir}/wine-commit" ] && [ -z "${WINE_VERSION}" ] ; } && WINE_VERSION="$(cat "${patches_dir}/wine-commit")"
+    { [ -r "${patches_dir}/staging-commit" ] && [ -z "${STAGING_VERSION}" ] ; } && STAGING_VERSION="$(cat "${patches_dir}/staging-commit")"
+    return 0
 }
 
 ## ------------------------------------------------------------
@@ -390,7 +391,7 @@ main() {
     # Wine version settings
     WINE_VERSION="${WINE_VERSION:-}"
     STAGING_VERSION="${STAGING_VERSION:-}"
-    RELEASE_VERSION="${RELEASE_VERSION:-}"
+    RELEASE_VERSION="${RELEASE_VERSION:-2}"
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
     PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
