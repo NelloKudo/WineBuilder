@@ -271,7 +271,7 @@ compiler_setup() {
                         -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
 
         _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096,--gc-sections"
-    else
+    else # gcc-mingw breaks tosu ingame overlay unless -O0 is used...
         if [ -n "$(command -v i686-w64-mingw32-clang)" ]; then
             PATH="${PATH//"$(dirname "$(command -v i686-w64-mingw32-clang)")":/}"
         fi
@@ -391,7 +391,7 @@ main() {
     # Wine version settings
     WINE_VERSION="${WINE_VERSION:-}"
     STAGING_VERSION="${STAGING_VERSION:-}"
-    RELEASE_VERSION="${RELEASE_VERSION:-5}"
+    RELEASE_VERSION="${RELEASE_VERSION:-6}"
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
     PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
@@ -544,5 +544,5 @@ main() {
 # option 3: debug (empty/default = false)
 # option 4: llvm-mingw (empty/default = false)
 
-main "$@"
+main "$@" true true false true
 # main "$@" false # do lib32 too?
