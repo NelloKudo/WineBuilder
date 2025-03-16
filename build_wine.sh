@@ -49,13 +49,16 @@ _custompatcher() {
     patchlist=()
     #if [ "${USE_LTO}" = "true" ]; then patchlist+=("${srcdir}"/lto-fixup.patch); fi
 
-    pattern=("(" "-regex" ".*\.patch")
+    pattern=("(" "(" "-regex" ".*\.patch")
 
     if [ "${USE_WOW64}" = "true" ]; then
         pattern+=(")" "-a" "(" "-not" "-regex" ".*\.3264\.patch")
     fi
+    if [ "${CRAP_AUDIO}" = "true" ]; then
+        pattern+=(")" "-a" "(" "-not" "-regex" ".*-audio\/.*\.patch")
+    fi
 
-    pattern+=(")")
+    pattern+=(")" ")")
 
     mapfile -t patchlist_tmp < <(find "${patches_dir}" -type f "${pattern[@]}" | LC_ALL=C sort -f)
 
@@ -195,6 +198,7 @@ build_setup() {
     if [ "${BUILD_FONTS}" = "true" ]; then EXTRA_NAME+="-fonts"; fi
     if [ "${USE_WOW64}" = "true" ]; then EXTRA_NAME+="-wow64"; fi
     if [ "${DEBUG}" = "true" ]; then EXTRA_NAME+="-debug"; fi
+    if [ "${CRAP_AUDIO}" = "true" ]; then EXTRA_NAME+="-noaudio"; fi
     BUILD_OUT_TMP_DIR="wine-winello-build"
 
     # Ensure source directory exists
@@ -389,21 +393,22 @@ main() {
     SOURCE_DIR="${WINE_ROOT}/sources"
 
     # Wine version settings
-    WINE_VERSION="${WINE_VERSION:-}"
-    STAGING_VERSION="${STAGING_VERSION:-}"
-    RELEASE_VERSION="${RELEASE_VERSION:-6}"
+    WINE_VERSION=''
+    STAGING_VERSION=''
+    RELEASE_VERSION='6'
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
     PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
     PATCHSET_REPO="${PATCHSET_REPO:-https://github.com/whrvt/wine-osu-patches.git}"
     TAG_FILTER="${TAG_FILTER:-winello*}"
-    STAGING_ARGS="${STAGING_ARGS:---all}"
+    STAGING_ARGS="--all"
 
     # Build configuration
     USE_WOW64="${1:-true}"
     BUILD_FONTS="${2:-true}"
     DEBUG="${3:-false}"
     USE_LLVM_MINGW="${4:-false}"
+    CRAP_AUDIO="${5:-false}"
 
     WINE_URL="https://github.com/wine-mirror/wine.git"
     WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
@@ -543,6 +548,9 @@ main() {
 # option 2: fonts (empty/default = true)
 # option 3: debug (empty/default = false)
 # option 4: llvm-mingw (empty/default = false)
+# option 5: no audio patches (empty/default = false)
 
-main "$@" true true false true
-# main "$@" false # do lib32 too?
+main "$@" true true false true false
+
+#also do a build without audio patches
+#main "$@" true true false true true
