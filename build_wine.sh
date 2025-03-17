@@ -182,11 +182,13 @@ package_wine() {
         cd "${BUILD_DIR}"
     fi
 
-    Info "Creating and compressing archives..."
+    local ARCHIVE_NAME="wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz"
+
+    Info "Creating and compressing ${ARCHIVE_NAME}..."
     tar -cJf \
-        "wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz" \
+        "${ARCHIVE_NAME}" \
         --xattrs --numeric-owner --owner=0 --group=0 wine-osu
-    mv "wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz" "${WINE_ROOT}"
+    mv "${ARCHIVE_NAME}" "${WINE_ROOT}"
 }
 
 ## ------------------------------------------------------------
@@ -414,6 +416,8 @@ main() {
     WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
     STAGING_URL="https://github.com/wine-staging/wine-staging.git"
     STAGING_FALLBACK_URL="https://gitlab.winehq.org/wine/wine-staging.git"
+
+    Info "Using release version $RELEASE_VERSION"
 
     build_setup
     compiler_setup
