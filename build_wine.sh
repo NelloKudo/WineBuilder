@@ -395,7 +395,7 @@ main() {
     # Wine version settings
     WINE_VERSION=''
     STAGING_VERSION=''
-    RELEASE_VERSION='6'
+    RELEASE_VERSION='7'
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
     PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
@@ -553,4 +553,4 @@ main() {
 main "$@" true true false true false
 
 #also do a build without audio patches
-#main "$@" true true false true true
+main "$@" true true false true true
