@@ -73,10 +73,10 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 90 \
 
 FROM main-deps AS manual-deps
 
-ENV FFMPEG_VERSION="7.0.2" \
-    LIBXKBCOMMON_VERSION="1.7.0" \
-    LLVM_MINGW_VERSION="20241030" \
-    XZ_VERSION="5.6.3" \
+ENV FFMPEG_VERSION="7.1.1" \
+    LIBXKBCOMMON_VERSION="1.8.1" \
+    LLVM_MINGW_VERSION="20250305" \
+    XZ_VERSION="5.6.4" \
     LIBUNWIND_VERSION="1.8.1" \
     GCC_MINGW_VERSION="14.2.0-1" \
     LIBGLVND_VERSION="1.7.0"
