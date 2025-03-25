@@ -397,7 +397,7 @@ main() {
     # Wine version settings
     WINE_VERSION=''
     STAGING_VERSION=''
-    RELEASE_VERSION='1'
+    RELEASE_VERSION='2'
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
     PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
