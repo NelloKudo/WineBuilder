@@ -94,6 +94,9 @@ build_wine() {
     export i386_CC="${CROSSCC_X32}"
     export CROSSCC="${CROSSCC_X64}"
 
+    WINE_64_BUILD_OPTIONS+=(--with-mingw="${x86_64_CC}")
+    WINE_32_BUILD_OPTIONS+=(--with-mingw="${i386_CC}")
+
     if [ -f "/usr/local/lib/libunwind.a" ] && [ -f "/usr/local/lib/liblzma.a" ]; then
         export UNWIND_CFLAGS=""
         export UNWIND_LIBS="-L/usr/local/lib/ -static-libgcc -l:libunwind.a -l:liblzma.a"
@@ -272,11 +275,6 @@ compiler_setup() {
         export CROSSCXX_X32="ccache i686-w64-mingw32-clang++"
         export CROSSCC_X64="ccache x86_64-w64-mingw32-clang"
         export CROSSCXX_X64="ccache x86_64-w64-mingw32-clang++"
-
-        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse -fno-semantic-interposition -fgnuc-version=5.99.99 -fdata-sections -ffunction-sections \
-                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
-
-        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096,--gc-sections"
     else # gcc-mingw breaks tosu ingame overlay unless -O0 is used...
         if [ -n "$(command -v i686-w64-mingw32-clang)" ]; then
             PATH="${PATH//"$(dirname "$(command -v i686-w64-mingw32-clang)")":/}"
@@ -295,14 +293,11 @@ compiler_setup() {
         export CROSSCXX_X32="ccache i686-w64-mingw32-g++"
         export CROSSCC_X64="ccache x86_64-w64-mingw32-gcc"
         export CROSSCXX_X64="ccache x86_64-w64-mingw32-g++"
-
-        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse -fno-semantic-interposition \
-                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
-
-        _CROSS_LD_FLAGS+=" -Wl,-O2,--sort-common,--as-needed,--file-alignment=4096"
     fi
 
-    _native_common_cflags="-fdata-sections -ffunction-sections -static-libgcc -static-libstdc++"
+    _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse \
+                    -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+    _native_common_cflags="-static-libgcc"
 
     if [ "$DEBUG" = "true" ]; then
         export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
@@ -310,34 +305,28 @@ compiler_setup() {
         _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
                         -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
                         -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-
-        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O2,--sort-common,--as-needed"
-
     else
         export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-
-        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O2,--sort-common,--as-needed,--gc-sections"
     fi
 
     _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
     _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
+    _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
+    _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
 
     # Compiler and linker flags
-    export CFLAGS="${_GCC_FLAGS} -std=gnu17"
+    export CFLAGS="${_GCC_FLAGS}"
     export CXXFLAGS="${_GCC_FLAGS}"
     export LDFLAGS="${_LD_FLAGS}"
 
-    export CROSSCFLAGS="${_CROSS_FLAGS} -std=gnu17"
+    export CROSSCFLAGS="${_CROSS_FLAGS}"
     export CROSSCXXFLAGS="${_CROSS_FLAGS}"
     export CROSSLDFLAGS="${_CROSS_LD_FLAGS}"
 
     export i386_CC="${CROSSCC_X32}"
     export x86_64_CC="${CROSSCC_X64}"
-    export i386_CFLAGS="${CROSSCFLAGS} -std=gnu17"
-    export x86_64_CFLAGS="${CROSSCFLAGS} -std=gnu17"
-
-    WINE_64_BUILD_OPTIONS+=(--with-mingw="${CROSSCC_X64}")
-    WINE_32_BUILD_OPTIONS+=(--with-mingw="${CROSSCC_X32}")
+    export i386_CFLAGS="${CROSSCFLAGS}"
+    export x86_64_CFLAGS="${CROSSCFLAGS}"
 }
 
 ## ------------------------------------------------------------
