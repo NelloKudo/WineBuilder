@@ -228,6 +228,7 @@ build_setup() {
         --without-capi
         --without-v4l2
         --without-netapi
+        --disable-msv1_0
     )
 
     if [ "${DEBUG}" = "true" ]; then
@@ -261,15 +262,15 @@ compiler_setup() {
     # Compiler flags
     if [ "$USE_LLVM_MINGW" = "true" ] && [ "$DEBUG" != "true" ]; then # llvm-mingw is a bit broken for debug
         # LLVM-MinGW configuration
-        export LLVM_MINGW_PATH="/usr/local/llvm-mingw"
+        LLVM_MINGW_PATH="/usr/local/llvm-mingw"
         export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
 
-        export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
-        export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+        export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
 
         # Compiler settings
-        export CC="ccache clang"
-        export CXX="ccache clang++"
+        export CC="ccache gcc"
+        export CXX="ccache g++"
         export CROSSCC="ccache x86_64-w64-mingw32-clang"
         export CROSSCC_X32="ccache i686-w64-mingw32-clang"
         export CROSSCXX_X32="ccache i686-w64-mingw32-clang++"
@@ -283,8 +284,8 @@ compiler_setup() {
         GCC_MINGW_PATH="/usr/local/gcc-mingw"
         export PATH="${GCC_MINGW_PATH}/bin:${PATH}"
 
-        export LIBRARY_PATH="/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
-        export LD_LIBRARY_PATH="/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+        export LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
 
         export CC="ccache gcc"
         export CXX="ccache g++"
@@ -295,20 +296,18 @@ compiler_setup() {
         export CROSSCXX_X64="ccache x86_64-w64-mingw32-g++"
     fi
 
-    _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse \
-                    -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
-    _native_common_cflags="-static-libgcc"
-
-    if [ "$DEBUG" = "true" ]; then
-        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
-        # overwrite with gcc debug stuff
+    if [ "$DEBUG" != "true" ]; then
+        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Os -ffunction-sections -fdata-sections -fno-strict-aliasing -fwrapv -mfpmath=sse -Wl,--gc-sections \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+    else
         _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
                         -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
                         -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-    else
-        export CPPFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
     fi
 
+    _native_common_cflags="-static-libgcc"
+
+    export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
     _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
     _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
     _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
@@ -378,6 +377,7 @@ patch_setup() {
 ## ------------------------------------------------------------
 
 main() {
+    cd "${ORIGPATH}"
     # Base paths
     WINE_ROOT="/wine"
     BUILD_DIR="${WINE_ROOT}/build_wine"
@@ -386,7 +386,7 @@ main() {
     # Wine version settings
     WINE_VERSION=''
     STAGING_VERSION=''
-    RELEASE_VERSION='3'
+    RELEASE_VERSION='1'
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
     PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
@@ -542,6 +542,8 @@ main() {
 # option 3: debug (empty/default = false)
 # option 4: llvm-mingw (empty/default = false)
 # option 5: no audio patches (empty/default = false)
+
+ORIGPATH="${PWD:-$(pwd)}"
 
 # main wow64 build
 main "$@" true true false true false
