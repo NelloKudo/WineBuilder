@@ -1,5 +1,5 @@
 # Makefile to bundle fonts to Wine taken from Proton-GE and proton-cachyos,
-# read more at: https://github.com/CachyOS/proton-cachyos/blob/cachyos_9.0_20241031/Makefile.in
+# read more at: https://github.com/GloriousEggroll/proton-ge-custom/blob/f12a64ec30b37b01d3691ae56767f8a0e187fc56/Makefile.in#L984
 
 # Enable secondary expansions, needed for font compilation rules
 .SECONDEXPANSION:
@@ -145,14 +145,14 @@ $(FONTS_OBJ)/source-han/%.ttf: $$(%.ttf_CIDFONT) $$(%.ttf_FEATURES) $$(%.ttf_SEQ
 	mkdir -p $(FONTS_OBJ)/source-han
 	# Do not immediately create the target file, so that make is interrupted
 	# it will restart again
-	makeotfexe -f $($(notdir $@)_CIDFONT) -omitMacNames -ff $($(notdir $@)_FEATURES) \
+	afdko makeotfexe -f $($(notdir $@)_CIDFONT) -omitMacNames -ff $($(notdir $@)_FEATURES) \
 		-lic ADOBE -mf $($(notdir $@)_MENUNAMEDB) -r -nS -cs 25 -ch $($(notdir $@)_UNISOURCE) \
 		-ci $($(notdir $@)_SEQUENCES) -o $@.tmp
-	tx -cff +S -no_futile $($(notdir $@)_CIDFONT) $@.cff
+	afdko tx -cff +S -no_futile $($(notdir $@)_CIDFONT) $@.cff
 	# sftnedit uses a hardcoded temporary file in the local directory, so we have
 	# to run it in a dedicated temporary directory to prevent concurrent instances
 	# to step onto each other's feet
-	(TEMP_DIR=`mktemp -d` && cd $$TEMP_DIR && sfntedit -a CFF=$(abspath $($(notdir $@)).cff) $(abspath $@.tmp) && rm -fr $$TEMP_DIR)
+	(TEMP_DIR=`mktemp -d` && cd $$TEMP_DIR && afdko sfntedit -a CFF=$(abspath $($(notdir $@)).cff) $(abspath $@.tmp) && rm -fr $$TEMP_DIR)
 	mv $@.tmp $@
 
 $(FONTS_OBJ)/ume-gothic/%.ttf: $$(%.ttf_FONT) $$(%.ttf_NAMETABLE_PATCH)
@@ -162,12 +162,12 @@ $(FONTS_OBJ)/ume-gothic/%.ttf: $$(%.ttf_FONT) $$(%.ttf_NAMETABLE_PATCH)
 	ttx -o $@ -m $($(notdir $@)_FONT) $(FONTS_OBJ)/ume-gothic/$(notdir $(basename $($(notdir $@)_NAMETABLE_PATCH))).ttx
 
 $(simsun.ttc): $(simsun.ttf) $(nsimsun.ttf)
-	otf2otc -o $@.tmp $^
-	otf2ttf -o $@ $@.tmp
+	afdko otf2otc -o $@.tmp $^
+	afdko otf2ttf -o $@ $@.tmp
 	rm $@.tmp
 
 $(msgothic.ttc): $(msgothic.ttf) $(mspgothic.ttf) $(msuigothic.ttf)
-	otf2otc -o $@ $^
+	afdko otf2otc -o $@ $^
 
 $(micross.ttf): $(FONTS)/scripts/merge.py $(noto_sans.ttf) $(noto_sans_arabic.ttf) $(noto_sans_armenian.ttf) $(noto_sans_bengali.ttf) $(noto_sans_coptic.ttf) \
 		$(noto_sans_georgian.ttf) $(noto_sans_gujarati.ttf) $(noto_sans_hebrew.ttf) $(noto_sans_khmer.ttf) $(noto_sans_tamil.ttf) \

@@ -174,7 +174,11 @@ RUN apt-get -y update && \
 
 FROM manual-deps AS temp-layer
 
-COPY build_wine.sh /usr/local/bin/
+COPY build_scripts/build_wine.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/build_wine.sh
+
+COPY build_scripts/build_osu_wine.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/build_osu_wine.sh
+
 WORKDIR /wine
-ENTRYPOINT ["/usr/local/bin/build_wine.sh"]
+

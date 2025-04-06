@@ -1,51 +1,79 @@
 # WineBuilder
 
-Fork of [Wine-Builds](https://github.com/Kron4ek/Wine-Builds) aimed at making **building Wine binaries** (eventually using custom patches) easier than ever.
+**WineBuilder** is a script that makes it easier to build **Wine binaries**, including versions with custom patches, using Docker.
 
-You can find binaries built from this repo on the releases page and (eventually) at [osu-winello](https://github.com/NelloKudo/osu-winello) 8)
+You can find prebuilt binaries on the [Releases page](https://github.com/NelloKudo/WineBuilder/releases).
+
+---
 
 ## Builds description
 
-The binaries create an **Ubuntu 20.04 Docker image** and build Wine using it. That means providing support for a wide range of distros, as long as **GLIBC>=2.31**.
+WineBuilder uses the latest Proton SDK (with a few changes) to build Wine inside a Docker container. This ensures great compatibility and feature completeness — including seamless usage within the **Steam Linux Runtime**.
+There are currently two build scripts available:
 
-**Custom patches** can be applied by simply copying those into the `custompatches` folder of the repo, and configuring the `PATCHSET` in `build_wine.sh` to use those instead of the ones from the [wine-osu-patches](https://github.com/whrvt/wine-osu-patches) repo.
+- **`build_osu_wine.sh`** (default): Builds a version of Wine made for **osu!stable**, with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), also used in [osu-winello](https://github.com/NelloKudo/osu-winello).
+- **`build_wine.sh`**: Builds the latest **Wine-Staging** version by default. You can customize it if you want.
+
+> **Custom patches:** To use your own patches, just place them in the `custompatches/` folder and set the `PATCHSET` variable in `build_osu_wine.sh` to use them instead of the default ones.
+
+---
 
 ## Requirements
 
-Use your package manager to install the following dependencies: `docker` and `docker-buildx`.
+Install the following packages using your system's package manager:
 
-**You can use the following:**
+- `docker`
+- `docker-buildx`
 
-**Ubuntu/Debian:** `sudo apt install -y docker docker-buildx`
+**Ubuntu/Debian:**
+```bash
+sudo apt install -y docker docker-buildx
+```
 
-**Arch Linux:** `sudo pacman -Sy --needed --noconfirm docker docker-buildx`
+**Arch Linux:**
+```bash
+sudo pacman -Sy --needed --noconfirm docker docker-buildx
+```
 
-**Fedora:** `sudo dnf install -y docker docker-buildx`
+**Fedora:**
+```bash
+sudo dnf install -y docker docker-buildx
+```
+
+After installing, add yourself to the Docker group and enable the Docker service:
+
+```bash
+sudo gpasswd -a $USER docker
+sudo systemctl enable docker docker.socket
+```
+
+---
 
 ## Building Wine
 
-First of all, clone the repository (or download it) and enter it with:
+First, clone the repo and go into the folder:
 
-```
+```bash
 git clone https://github.com/NelloKudo/WineBuilder.git
 cd WineBuilder
 ```
 
-Once in the folder, run the following to create the Docker image and build Wine in it:
+Then run the build script:
 
-```
+```bash
 ./build.sh
 ```
 
-You'll find the binaries in the same folder :)
+It will ask you to choose between:
 
-## osu! builds support (OUTDATED)
+- `wine-osu`
+- `wine-staging`
 
-Instructions for building your own wine-osu binary are below:
+Or, you can run one directly like this:
 
-- [Building wine-osu with custom patches](https://gist.github.com/NelloKudo/b6f6d48807548bd3cacd3018a1cadef5)
+```bash
+./build.sh build_osu_wine    # For osu!stable
+./build.sh build_wine        # For Wine-Staging
+```
 
-If you don't need it, setting it to `false` will be enough :3
-
-You can read more into the `build_wine.sh` file.
-
+The built Wine binaries will be saved in the same folder when it's done. 🎉
