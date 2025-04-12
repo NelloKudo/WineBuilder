@@ -12,7 +12,7 @@ WineBuilder uses the latest Proton SDK (with a few changes) to build Wine inside
 
 By default, the script creates **osu!-specific builds**, with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), also used in [osu-winello](https://github.com/NelloKudo/osu-winello). 
 
-To build a regular Wine-Staging version instead, simply set **`WINE_OSU="false"`** in `wine_builder.sh`.
+To build a regular Wine-Staging version instead, simply set **`WINE_OSU="false"`** in `wine_builder.sh`—the same file where all customizations can be made.
 
 > **Custom patches:** To use your own patches in your custom builds, just place them in the `custompatches/` folder.
 ---
