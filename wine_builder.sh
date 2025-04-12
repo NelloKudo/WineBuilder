@@ -12,6 +12,54 @@ Error() {
 }
 
 ## ------------------------------------------------------------
+##                  Configuration
+## ------------------------------------------------------------
+
+_configuration() {
+    # Toggle to disable osu!-specific patches and workarounds.
+    # Set this to false to build classic Wine-Staging by default.
+    WINE_OSU="true"
+
+    # Toggle to enable/disable Wine-Staging.
+    USE_STAGING="true"
+
+    # Set your custom build name here:
+    BUILD_NAME="wine-wb"
+
+    # Wine version settings
+    WINE_VERSION=''
+    STAGING_VERSION=''
+    RELEASE_VERSION='1'
+
+    # Build configuration
+    # You can change the default value by changing the value after :-
+    USE_WOW64="${1:-true}"
+    BUILD_FONTS="${2:-true}"
+    DEBUG="${3:-false}"
+    USE_LLVM_MINGW="${4:-false}"
+    CRAP_AUDIO="${5:-false}"
+
+    # Wine links
+    WINE_URL="https://github.com/wine-mirror/wine.git"
+    WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
+    STAGING_URL="https://github.com/wine-staging/wine-staging.git"
+    STAGING_FALLBACK_URL="https://gitlab.winehq.org/wine/wine-staging.git"
+
+    # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
+    PATCHSET="" # leave empty for loose patches in custompatches/
+    PATCHSET_REPO="${PATCHSET_REPO:-https://github.com/whrvt/wine-osu-patches.git}"
+    TAG_FILTER="${TAG_FILTER:-winello*}"
+    STAGING_ARGS="--all"
+
+    # osu!-specific settings
+    if [ "$WINE_OSU" == "true" ]; then
+        BUILD_NAME="wine-osu"
+        USE_STAGING="true"
+        PATCHSET="remote:latest"
+    fi
+}
+
+## ------------------------------------------------------------
 ##                  Build Functions
 ## ------------------------------------------------------------
 
@@ -51,11 +99,15 @@ _custompatcher() {
 
     pattern=("(" "(" "-regex" ".*\.patch")
 
-    if [ "${USE_WOW64}" = "true" ]; then
-        pattern+=(")" "-a" "(" "-not" "-regex" ".*\.3264\.patch")
-    fi
-    if [ "${CRAP_AUDIO}" = "true" ]; then
-        pattern+=(")" "-a" "(" "-not" "-regex" ".*-audio\/.*\.patch")
+    # Wine-osu hotfixes
+    if [ "$WINE_OSU" == "true" ]; then
+        if [ "${USE_WOW64}" = "true" ]; then
+            pattern+=(")" "-a" "(" "-not" "-regex" ".*\.3264\.patch")
+        fi
+
+        if [ "${CRAP_AUDIO}" = "true" ]; then
+            pattern+=(")" "-a" "(" "-not" "-regex" ".*-audio\/.*\.patch")
+        fi
     fi
 
     pattern+=(")" ")")
@@ -175,22 +227,27 @@ package_wine() {
     cd "${BUILD_DIR}"
     [ -z "${RELEASE_VERSION}" ] && RELEASE_VERSION="1"
 
-    mv "${BUILD_OUT_TMP_DIR}" "wine-osu"
+    # Setting version to build name, too
+    if [ "${BUILD_NAME}" != "wine-osu" ]; then
+        BUILD_NAME="$BUILD_NAME-$WINE_VERSION"
+    fi
+
+    mv "${BUILD_OUT_TMP_DIR}" "${BUILD_NAME}"
 
     if [ "${BUILD_FONTS}" = "true" ]; then
         # Launch fonts build script
         Info "Compiling and installing fonts from Proton..."
         cd "${WINE_ROOT}/protonfonts"
-        WINE_FONTS_DESTDIR="${BUILD_DIR}/wine-osu/share/wine/fonts" make all-dist
+        WINE_FONTS_DESTDIR="${BUILD_DIR}/${BUILD_NAME}/share/wine/fonts" make all-dist
         cd "${BUILD_DIR}"
     fi
 
-    local ARCHIVE_NAME="wine-osu-winello${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz"
+    local ARCHIVE_NAME="${BUILD_NAME}${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz"
 
     Info "Creating and compressing ${ARCHIVE_NAME}..."
     tar -cJf \
         "${ARCHIVE_NAME}" \
-        --xattrs --numeric-owner --owner=0 --group=0 wine-osu
+        --xattrs --numeric-owner --owner=0 --group=0 "${BUILD_NAME}"
     mv "${ARCHIVE_NAME}" "${WINE_ROOT}"
 }
 
@@ -200,11 +257,13 @@ package_wine() {
 
 build_setup() {
     EXTRA_NAME=""
+    if [ "${WINE_OSU}" = "true" ]; then EXTRA_NAME+="-winello"; fi
+    if [ "${USE_STAGING}" = "true" ] && [ "${WINE_OSU}" = "false" ]; then EXTRA_NAME+="-staging"; fi
     if [ "${BUILD_FONTS}" = "true" ]; then EXTRA_NAME+="-fonts"; fi
     if [ "${USE_WOW64}" = "true" ]; then EXTRA_NAME+="-wow64"; fi
     if [ "${DEBUG}" = "true" ]; then EXTRA_NAME+="-debug"; fi
     if [ "${CRAP_AUDIO}" = "true" ]; then EXTRA_NAME+="-noaudio"; fi
-    BUILD_OUT_TMP_DIR="wine-winello-build"
+    BUILD_OUT_TMP_DIR="wine-wb-build"
 
     # Ensure source directory exists
     mkdir -p "${SOURCE_DIR}"
@@ -377,34 +436,16 @@ patch_setup() {
 ## ------------------------------------------------------------
 
 main() {
+
+    # Resetting configuration for double main runs
+    _configuration "$@"
+
     cd "${ORIGPATH}"
+
     # Base paths
     WINE_ROOT="/wine"
     BUILD_DIR="${WINE_ROOT}/build_wine"
     SOURCE_DIR="${WINE_ROOT}/sources"
-
-    # Wine version settings
-    WINE_VERSION=''
-    STAGING_VERSION=''
-    RELEASE_VERSION='1'
-
-    # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
-    PATCHSET="remote:latest" # leave empty for loose patches in custompatches/
-    PATCHSET_REPO="${PATCHSET_REPO:-https://github.com/whrvt/wine-osu-patches.git}"
-    TAG_FILTER="${TAG_FILTER:-winello*}"
-    STAGING_ARGS="--all"
-
-    # Build configuration
-    USE_WOW64="${1:-true}"
-    BUILD_FONTS="${2:-true}"
-    DEBUG="${3:-false}"
-    USE_LLVM_MINGW="${4:-false}"
-    CRAP_AUDIO="${5:-false}"
-
-    WINE_URL="https://github.com/wine-mirror/wine.git"
-    WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
-    STAGING_URL="https://github.com/wine-staging/wine-staging.git"
-    STAGING_FALLBACK_URL="https://gitlab.winehq.org/wine/wine-staging.git"
 
     Info "Using release version $RELEASE_VERSION"
 
@@ -487,14 +528,22 @@ main() {
     cp -r "${SOURCE_DIR}/wine" "${BUILD_DIR}/wine"
     cp -r "${SOURCE_DIR}/wine-staging" "${BUILD_DIR}/wine-staging-${WINE_VERSION}"
 
-    # Breaks seccomp (example: opening browser from clicking on links in wine)
-    if [ "${USE_WOW64}" = "true" ]; then
-        Info "WoW64 build: adding staging hotfix to remove the 'ntdll-Syscall_Emulation' patchset"
-        STAGING_ARGS+=" -W ntdll-Syscall_Emulation"
+    # Staging section
+    if [ "$USE_STAGING" = "true" ]; then
+        Info "Staging enabled, applying patches.."
+
+        # Breaks seccomp (example: opening browser from clicking on links in wine)
+        if [ "${WINE_OSU}" = "true" ] && [ "${USE_WOW64}" = "true" ]; then
+            Info "WoW64 build: adding staging hotfix to remove the 'ntdll-Syscall_Emulation' patchset"
+            STAGING_ARGS+=" -W ntdll-Syscall_Emulation"
+        fi
+
+        # Also disabling problematic Staging patchset
+        STAGING_ARGS+=" -W winedevice-Default_Drivers"
+
+        _staging_patcher
     fi
 
-    # Apply patches
-    _staging_patcher
     cd "${BUILD_DIR}/wine"
     # Apply custom patches
     _custompatcher
@@ -513,11 +562,11 @@ main() {
     git add --all
     git commit -m "makepkg"
 
-    # # Generate required files
-    # [ -e dlls/winevulkan/make_vulkan ] && {
-    #     chmod +x dlls/winevulkan/make_vulkan
-    #     dlls/winevulkan/make_vulkan -x vk.xml
-    # }
+    # Generate required files
+    [ -e dlls/winevulkan/make_vulkan ] && {
+    chmod +x dlls/winevulkan/make_vulkan
+    dlls/winevulkan/make_vulkan
+    }
 
     chmod +x tools/make_requests
     tools/make_requests
@@ -537,19 +586,26 @@ main() {
     Info "Build completed successfully!"
 }
 
-# option 1: wow64 (empty/default = true)
-# option 2: fonts (empty/default = true)
-# option 3: debug (empty/default = false)
-# option 4: llvm-mingw (empty/default = false)
-# option 5: no audio patches (empty/default = false)
+## Script options:
+# Option 1: wow64 (empty/default = true)
+# Option 2: fonts (empty/default = true)
+# Option 3: debug (empty/default = false)
+# Option 4: llvm-mingw (empty/default = false)
+# Option 5: no audio patches (empty/default = false)
 
 ORIGPATH="${PWD:-$(pwd)}"
+_configuration "$@"
 
-# main wow64 build
-main "$@" true true false true false
+if [ "$WINE_OSU" = "true" ]; then
+    # Main osu! build
+    Info "Building wine-osu:"
+    main "$@" true true false true false
 
-# also do a debug build
-main "$@" true true true false false
-
-#also do a build without audio patches
-#main "$@" true true false true true
+    # Also do a debug build
+    Info "Building wine-osu-debug:"
+    main "$@" true true true false false
+else
+    # Leave default settings for usual builds
+    Info "Building your custom Wine:"
+    main "$@"
+fi

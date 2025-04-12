@@ -9,13 +9,12 @@ You can find prebuilt binaries on the [Releases page](https://github.com/NelloKu
 ## Builds description
 
 WineBuilder uses the latest Proton SDK (with a few changes) to build Wine inside a Docker container. This ensures great compatibility and feature completeness — including seamless usage within the **Steam Linux Runtime**.
-There are currently two build scripts available:
 
-- **`build_osu_wine.sh`** (default): Builds a version of Wine made for **osu!stable**, with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), also used in [osu-winello](https://github.com/NelloKudo/osu-winello).
-- **`build_wine.sh`**: Builds the latest **Wine-Staging** version by default. You can customize it if you want.
+By default, the script creates **osu!-specific builds**, with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), also used in [osu-winello](https://github.com/NelloKudo/osu-winello). 
 
-> **Custom patches:** To use your own patches, just place them in the `custompatches/` folder and set the `PATCHSET` variable in `build_osu_wine.sh` to use them instead of the default ones.
+To build a regular Wine-Staging version instead, simply set **`WINE_OSU="false"`** in `wine_builder.sh`.
 
+> **Custom patches:** To use your own patches in your custom builds, just place them in the `custompatches/` folder.
 ---
 
 ## Requirements
@@ -62,18 +61,6 @@ Then run the build script:
 
 ```bash
 ./build.sh
-```
-
-It will ask you to choose between:
-
-- `wine-osu`
-- `wine-staging`
-
-Or, you can run one directly like this:
-
-```bash
-./build.sh build_osu_wine    # For osu!stable
-./build.sh build_wine        # For Wine-Staging
 ```
 
 The built Wine binaries will be saved in the same folder when it's done. 🎉
