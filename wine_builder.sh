@@ -36,7 +36,7 @@ _configuration() {
     USE_WOW64="${1:-true}"
     BUILD_FONTS="${2:-true}"
     DEBUG="${3:-false}"
-    USE_LLVM_MINGW="${4:-false}"
+    USE_LLVM_MINGW="${4:-true}"
     CRAP_AUDIO="${5:-false}"
 
     # Wine links
