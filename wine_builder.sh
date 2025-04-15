@@ -30,8 +30,8 @@ _configuration() {
     BUILD_NAME="${BUILD_NAME:-wine-wb}"
 
     # Wine version settings
-    WINE_VERSION="${WINE_VERSION:-}"
-    STAGING_VERSION="${STAGING_VERSION:-}"
+    WINE_VERSION=''
+    STAGING_VERSION=''
     WINE_BRANCH="${WINE_BRANCH:-}"
     RELEASE_VERSION='1'
 

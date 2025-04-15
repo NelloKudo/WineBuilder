@@ -13,8 +13,8 @@ mkdir -p {custompatches,ccache,output,protonfonts,sources}
 docker buildx build --progress=plain -t wine-builder .
 
 ## Allow overriding variables in wine_builder.sh
-vars=(WINE_OSU USE_STAGING USE_TKG BUILD_NAME WINE_VERSION \
-      STAGING_VERSION WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER)
+vars=(WINE_OSU USE_STAGING USE_TKG BUILD_NAME \
+      WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER)
 
 WB_ENV_ARGS=()
 for var in "${vars[@]}"; do
