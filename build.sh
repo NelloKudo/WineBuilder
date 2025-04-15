@@ -12,9 +12,21 @@ Info "Welcome to WineBuilder!"
 mkdir -p {custompatches,ccache,output,protonfonts,sources}
 docker buildx build --progress=plain -t wine-builder .
 
+## Allow overriding variables in wine_builder.sh
+vars=(WINE_OSU USE_STAGING USE_TKG BUILD_NAME WINE_VERSION \
+      STAGING_VERSION WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER)
+
+WB_ENV_ARGS=()
+for var in "${vars[@]}"; do
+    if [[ -n "${!var:-}" ]]; then
+        WB_ENV_ARGS+=(-e "$var=${!var}")
+    fi
+done
+
 ## Building..
 docker run --rm -it \
     --name wine-builder \
+    "${WB_ENV_ARGS[@]}" \
     --mount type=bind,source="$(pwd)"/custompatches,target=/wine/custompatches \
     --mount type=bind,source="$(pwd)"/output,target=/wine \
     --mount type=bind,source="$(pwd)"/protonfonts,target=/wine/protonfonts \

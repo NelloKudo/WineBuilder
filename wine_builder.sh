@@ -18,17 +18,21 @@ Error() {
 _configuration() {
     # Toggle to disable osu!-specific patches and workarounds.
     # Set this to false to build classic Wine-Staging by default.
-    WINE_OSU="true"
+    WINE_OSU="${WINE_OSU:-true}"
 
     # Toggle to enable/disable Wine-Staging.
-    USE_STAGING="true"
+    USE_STAGING="${USE_STAGING:-true}"
+
+    # Toggle to enable/disable Wine-tkg.
+    USE_TKG="${USE_TKG:-false}"
 
     # Set your custom build name here:
-    BUILD_NAME="wine-wb"
+    BUILD_NAME="${BUILD_NAME:-wine-wb}"
 
     # Wine version settings
-    WINE_VERSION=''
-    STAGING_VERSION=''
+    WINE_VERSION="${WINE_VERSION:-}"
+    STAGING_VERSION="${STAGING_VERSION:-}"
+    WINE_BRANCH="${WINE_BRANCH:-}"
     RELEASE_VERSION='1'
 
     # Build configuration
@@ -36,17 +40,22 @@ _configuration() {
     USE_WOW64="${1:-true}"
     BUILD_FONTS="${2:-true}"
     DEBUG="${3:-false}"
-    USE_LLVM_MINGW="${4:-true}"
+    USE_LLVM_MINGW="${4:-false}"
     CRAP_AUDIO="${5:-false}"
 
     # Wine links
     WINE_URL="https://github.com/wine-mirror/wine.git"
-    WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
     STAGING_URL="https://github.com/wine-staging/wine-staging.git"
+    
+    # Fallback links
+    WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
     STAGING_FALLBACK_URL="https://gitlab.winehq.org/wine/wine-staging.git"
 
+    # Other links
+    WINE_TKG_URL="https://github.com/Kron4ek/wine-tkg"
+
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
-    PATCHSET="" # leave empty for loose patches in custompatches/
+    PATCHSET="${PATCHSET:-}" # leave empty for loose patches in custompatches/
     PATCHSET_REPO="${PATCHSET_REPO:-https://github.com/whrvt/wine-osu-patches.git}"
     TAG_FILTER="${TAG_FILTER:-winello*}"
     STAGING_ARGS="--all"
@@ -56,6 +65,14 @@ _configuration() {
         BUILD_NAME="wine-osu"
         USE_STAGING="true"
         PATCHSET="remote:latest"
+        USE_TKG="false"
+    fi
+
+    # tkg-specific settings
+    if [ "$USE_TKG" == "true" ]; then
+        BUILD_NAME="wine-wb-tkg"
+        USE_STAGING="false"
+        WINE_URL="$WINE_TKG_URL"
     fi
 }
 
@@ -227,11 +244,6 @@ package_wine() {
     cd "${BUILD_DIR}"
     [ -z "${RELEASE_VERSION}" ] && RELEASE_VERSION="1"
 
-    # Setting version to build name, too
-    if [ "${BUILD_NAME}" != "wine-osu" ]; then
-        BUILD_NAME="$BUILD_NAME-$WINE_VERSION"
-    fi
-
     mv "${BUILD_OUT_TMP_DIR}" "${BUILD_NAME}"
 
     if [ "${BUILD_FONTS}" = "true" ]; then
@@ -243,6 +255,12 @@ package_wine() {
     fi
 
     local ARCHIVE_NAME="${BUILD_NAME}${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz"
+
+    # Setting version to build name, too
+    if [ "${BUILD_NAME}" != "wine-osu" ]; then
+        mv "${BUILD_NAME}" "$BUILD_NAME-$WINE_VERSION"
+        BUILD_NAME="$BUILD_NAME-$WINE_VERSION"
+    fi
 
     Info "Creating and compressing ${ARCHIVE_NAME}..."
     tar -cJf \
@@ -355,13 +373,18 @@ compiler_setup() {
         export CROSSCXX_X64="ccache x86_64-w64-mingw32-g++"
     fi
 
-    if [ "$DEBUG" != "true" ]; then
-        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Os -ffunction-sections -fdata-sections -fno-strict-aliasing -fwrapv -mfpmath=sse -Wl,--gc-sections \
-                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+    # wine-osu-safe compiler flags
+    if [ "$WINE_OSU" = "true" ]; then
+        if [ "$DEBUG" != "true" ]; then
+            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Os -ffunction-sections -fdata-sections -fno-strict-aliasing -fwrapv -mfpmath=sse -Wl,--gc-sections \
+                            -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+        else
+            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
+                            -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
+                            -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+        fi
     else
-        _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
-                        -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
-                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+        _common_cflags="-march=nocona -mtune=core-avx2 -mfpmath=sse -pipe -Os -fno-strict-aliasing -fwrapv"
     fi
 
     _native_common_cflags="-static-libgcc"
@@ -446,6 +469,7 @@ main() {
     WINE_ROOT="/wine"
     BUILD_DIR="${WINE_ROOT}/build_wine"
     SOURCE_DIR="${WINE_ROOT}/sources"
+    SOURCE_NAME="wine"
 
     Info "Using release version $RELEASE_VERSION"
 
@@ -463,20 +487,36 @@ main() {
     git config --global http.lowSpeedLimit 1000
     git config --global http.lowSpeedTime 600
 
+    # Change source name if the WINE_URL isn't the default one (or fallback) to prevent conflicts
+    if [ "$WINE_URL" != "https://github.com/wine-mirror/wine.git" ] && [ "$WINE_URL" != "$WINE_FALLBACK_URL" ]; then
+        # Add check for tkg
+        if [ "$WINE_URL" = "$WINE_TKG_URL" ]; then
+            SOURCE_NAME="wine-tkg"
+        else
+            SOURCE_NAME="wine-custom"
+        fi
+    fi
+
     # Initialize/update Wine source
-    if [ ! -d "${SOURCE_DIR}/wine/.git" ]; then
+    if [ ! -d "${SOURCE_DIR}/${SOURCE_NAME}/.git" ]; then
         Info "Cloning Wine repository..."
         cd "${SOURCE_DIR}"
-        git clone "${WINE_URL}" wine
+
+        # Also consider if a branch was given
+        if [ -n "${WINE_BRANCH}" ]; then
+            git clone "${WINE_URL}" "${SOURCE_NAME}" -b "${WINE_BRANCH}"
+        else
+            git clone "${WINE_URL}" "${SOURCE_NAME}"
+        fi
     else
         Info "Updating Wine repository..."
-        cd "${SOURCE_DIR}/wine"
+        cd "${SOURCE_DIR}/${SOURCE_NAME}"
         git remote set-url origin "${WINE_URL}"
         git fetch origin
     fi
 
     # Clean and reset Wine source
-    cd "${SOURCE_DIR}/wine"
+    cd "${SOURCE_DIR}/${SOURCE_NAME}"
     git reset --hard HEAD
     git clean -xdf
     git remote update
@@ -525,7 +565,7 @@ main() {
 
     # Copy sources to build directory
     Info "Preparing build sources..."
-    cp -r "${SOURCE_DIR}/wine" "${BUILD_DIR}/wine"
+    cp -r "${SOURCE_DIR}/${SOURCE_NAME}" "${BUILD_DIR}/wine"
     cp -r "${SOURCE_DIR}/wine-staging" "${BUILD_DIR}/wine-staging-${WINE_VERSION}"
 
     # Staging section
