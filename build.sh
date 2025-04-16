@@ -24,7 +24,7 @@ for var in "${vars[@]}"; do
 done
 
 ## Building..
-docker run --rm -it \
+docker run --rm \
     --name wine-builder \
     "${WB_ENV_ARGS[@]}" \
     --mount type=bind,source="$(pwd)"/custompatches,target=/wine/custompatches \
