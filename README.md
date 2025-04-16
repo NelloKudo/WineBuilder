@@ -12,9 +12,22 @@ WineBuilder uses the latest Proton SDK (with a few changes) to build Wine inside
 
 By default, the script creates **osu!-specific builds**, with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), also used in [osu-winello](https://github.com/NelloKudo/osu-winello). 
 
-To build a regular Wine-Staging version instead, simply set **`WINE_OSU="false"`** in `wine_builder.sh`—the same file where all customizations can be made.
+To build a regular Wine-Staging version instead, run `WINE_OSU="false" ./build.sh` or simply set **`WINE_OSU="false"`** in `wine_builder.sh`—the same file where all customizations can be made.
+
+[wine-tkg](https://github.com/Kron4ek/wine-tkg) by Kron4ek is also supported: `WINE_OSU=false USE_TKG=true ./build.sh` will do the job.
 
 > **Custom patches:** To use your own patches in your custom builds, just place them in the `custompatches/` folder.
+
+---
+
+## Workflows
+
+WineBuilder currently provides two weekly automated builds, available via [GitHub Actions](https://github.com/NelloKudo/WineBuilder/actions):
+
+- [wine-osu-winello](https://github.com/NelloKudo/WineBuilder/actions/workflows/wine-osu-winello.yml), an osu!-specific Wine build with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches).
+
+- [spritz-wine-tkg](https://github.com/NelloKudo/WineBuilder/actions/workflows/spritz-wine-tkg.yml), a custom build of wine-tkg with patches from [WineSpritz](https://github.com/NelloKudo/WineSpritz), including game-specific fixes, select upstream MRs and some QoL improvements.
+
 ---
 
 ## Requirements
