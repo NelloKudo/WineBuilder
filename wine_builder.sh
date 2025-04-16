@@ -70,9 +70,12 @@ _configuration() {
 
     # tkg-specific settings
     if [ "$USE_TKG" == "true" ]; then
-        BUILD_NAME="wine-wb-tkg"
         USE_STAGING="false"
         WINE_URL="$WINE_TKG_URL"
+
+        if [[ "$BUILD_NAME" != *"-tkg" ]]; then
+            BUILD_NAME="$BUILD_NAME-tkg"
+        fi
     fi
 }
 
