@@ -508,13 +508,7 @@ main() {
     if [ ! -d "${SOURCE_DIR}/${SOURCE_NAME}/.git" ]; then
         Info "Cloning Wine repository..."
         cd "${SOURCE_DIR}"
-
-        # Also consider if a branch was given
-        if [ -n "${WINE_BRANCH}" ]; then
-            git clone "${WINE_URL}" "${SOURCE_NAME}" -b "${WINE_BRANCH}"
-        else
-            git clone "${WINE_URL}" "${SOURCE_NAME}"
-        fi
+        git clone "${WINE_URL}" "${SOURCE_NAME}"
     else
         Info "Updating Wine repository..."
         cd "${SOURCE_DIR}/${SOURCE_NAME}"
@@ -540,6 +534,12 @@ main() {
     fi
     WINE_VERSION=$(git describe --tags --abbrev=0 | cut -f2 -d'-')
     Info "Building Wine version: ${WINE_VERSION}"
+
+    # Custom settings for branches
+    if [ -n "${WINE_BRANCH}" ]; then
+        git switch "${WINE_BRANCH}"
+        BUILD_NAME="$BUILD_NAME-$WINE_BRANCH"
+    fi
 
     # Initialize/update Wine-Staging source
     if [ ! -d "${SOURCE_DIR}/wine-staging/.git" ]; then

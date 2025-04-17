@@ -27,6 +27,7 @@ WineBuilder currently provides two weekly automated builds, available via [GitHu
 - [wine-osu-winello](https://github.com/NelloKudo/WineBuilder/actions/workflows/wine-osu-winello.yml), an osu!-specific Wine build with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches).
 
 - [spritz-wine-tkg](https://github.com/NelloKudo/WineBuilder/actions/workflows/spritz-wine-tkg.yml), a custom build of wine-tkg with patches from [WineSpritz](https://github.com/NelloKudo/WineSpritz), including game-specific fixes, select upstream MRs and some QoL improvements.
+    - Also provides an ntsync version at: [spritz-wine-tkg-ntsync](https://github.com/NelloKudo/WineBuilder/actions/workflows/spritz-wine-tkg-ntsync.yml)
 
 ---
 
