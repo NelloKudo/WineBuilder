@@ -386,17 +386,21 @@ compiler_setup() {
                             -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
                             -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
         fi
+    
+        _native_common_cflags="-static-libgcc"
+
+        export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
+        _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
+        _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
+        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
+        _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
     else
-        _common_cflags="-march=nocona -mtune=core-avx2 -mfpmath=sse -pipe -Os -fno-strict-aliasing -fwrapv"
+        # Generic builds, generic flags:
+        _GCC_FLAGS="-march=x86-64 -msse3 -mfpmath=sse -O2 -ftree-vectorize -static-libgcc"
+        _LD_FLAGS="-Wl,-O1,--sort-common,--as-needed"
+        _CROSS_FLAGS="$_GCC_FLAGS"
+        _CROSS_LD_FLAGS="$_LD_FLAGS"
     fi
-
-    _native_common_cflags="-static-libgcc"
-
-    export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-    _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
-    _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-    _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
-    _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
 
     # Compiler and linker flags
     export CFLAGS="${_GCC_FLAGS}"
