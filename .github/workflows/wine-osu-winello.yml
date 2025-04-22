@@ -1,12 +1,10 @@
 name: wine-osu-winello
 
 on:
-  schedule:
-    - cron: '0 0 */7 * *'
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - 'wine-osu*'
 
 jobs:
   build:
