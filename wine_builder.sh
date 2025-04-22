@@ -64,7 +64,7 @@ _configuration() {
     if [ "$WINE_OSU" == "true" ]; then
         BUILD_NAME="wine-osu"
         USE_STAGING="true"
-        PATCHSET="remote:latest"
+        PATCHSET="remote:winello-v10.6-1"
         USE_TKG="false"
     fi
 
@@ -85,6 +85,17 @@ _configuration() {
 
 _staging_patcher() {
     Info "Applying Wine-Staging patches..."
+
+    # Breaks seccomp (example: opening browser from clicking on links in wine)
+    if [ "${WINE_OSU}" = "true" ]; then
+        if [ "${USE_WOW64}" = "true" ]; then
+            Info "WoW64 build: adding staging hotfix to remove the 'ntdll-Syscall_Emulation' patchset"
+            STAGING_ARGS+=" -W ntdll-Syscall_Emulation"
+        fi
+    else
+        # Also disabling problematic Staging patchset
+        STAGING_ARGS+=" -W winedevice-Default_Drivers"
+    fi
 
     local staging_patcher
     if [ -f "wine-staging-${WINE_VERSION}/patches/patchinstall.sh" ]; then
@@ -576,20 +587,7 @@ main() {
     cp -r "${SOURCE_DIR}/wine-staging" "${BUILD_DIR}/wine-staging-${WINE_VERSION}"
 
     # Staging section
-    if [ "$USE_STAGING" = "true" ]; then
-        Info "Staging enabled, applying patches.."
-
-        # Breaks seccomp (example: opening browser from clicking on links in wine)
-        if [ "${WINE_OSU}" = "true" ] && [ "${USE_WOW64}" = "true" ]; then
-            Info "WoW64 build: adding staging hotfix to remove the 'ntdll-Syscall_Emulation' patchset"
-            STAGING_ARGS+=" -W ntdll-Syscall_Emulation"
-        fi
-
-        # Also disabling problematic Staging patchset
-        STAGING_ARGS+=" -W winedevice-Default_Drivers"
-
-        _staging_patcher
-    fi
+    [ "$USE_STAGING" = "true" ] && _staging_patcher
 
     cd "${BUILD_DIR}/wine"
     # Apply custom patches
