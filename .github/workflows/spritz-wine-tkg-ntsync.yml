@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'spritz*'
+      - 'ntsync-spritz*'
 
 jobs:
   build:
