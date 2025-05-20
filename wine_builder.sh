@@ -185,6 +185,10 @@ build_wine() {
         export UNWIND_LIBS="-L/usr/local/lib/ -static-libgcc -l:libunwind.a -l:liblzma.a"
     fi
 
+    # Allow Wine-Wayland to work in Steam Linux Runtime
+    export XKBCOMMON_CFLAGS="$(pkg-config --cflags xkbcommon)"
+    export XKBCOMMON_LIBS="$(pkg-config --libs xkbcommon) -Wl,-rpath='\$\$ORIGIN'"
+
     # Configure and build 64-bit
     "${BUILD_DIR}/wine/configure" "${WINE_BUILD_OPTIONS[@]}" "${WINE_64_BUILD_OPTIONS[@]}"
     make -j$(($(nproc) + 1))
@@ -196,6 +200,8 @@ build_wine() {
         export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
         export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
         export CROSSCC="${CROSSCC_X32}"
+        export XKBCOMMON_CFLAGS="$(pkg-config --cflags xkbcommon)"
+        export XKBCOMMON_LIBS="$(pkg-config --libs xkbcommon) -Wl,-rpath='\$\$ORIGIN'"
         # export I386_LIBS="-latomic" required for older fsync
 
         cd "${BUILD_DIR}"
@@ -266,6 +272,18 @@ package_wine() {
         cd "${WINE_ROOT}/protonfonts"
         WINE_FONTS_DESTDIR="${BUILD_DIR}/${BUILD_NAME}/share/wine/fonts" make all-dist
         cd "${BUILD_DIR}"
+    fi
+
+    # Bundle libxkbcommon in Wine libraries, fixes Wine-Wayland in Steam Linux Runtime
+    if [[ " ${WINE_BUILD_OPTIONS[*]} " == *" --with-wayland "* ]]; then
+        Info "Wayland SLR fix: Copying libxkbcommon into Wine libraries.."
+        
+        if [ "${USE_WOW64}" == "true" ]; then
+            cp /usr/local/x86_64/lib/x86_64-linux-gnu/libxkb* "${BUILD_NAME}"/lib/wine/x86_64-unix
+        else
+            cp /usr/local/x86_64/lib/x86_64-linux-gnu/libxkb* "${BUILD_NAME}"/lib/wine/x86_64-unix
+            cp /usr/local/i386/lib/i386-linux-gnu/libxkb* "${BUILD_NAME}"/lib/wine/i386-unix
+        fi
     fi
 
     local ARCHIVE_NAME="${BUILD_NAME}${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz"
