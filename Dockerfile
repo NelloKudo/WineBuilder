@@ -10,7 +10,7 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/lib/gcc-14/bin/gcc 90 \
 FROM main-deps AS manual-deps
 
 ENV FFMPEG_VERSION="7.1.1" \
-    LIBXKBCOMMON_VERSION="1.8.1" \
+    LIBXKBCOMMON_VERSION="1.9.2" \
     LLVM_MINGW_VERSION="20250402" \
     XZ_VERSION="5.6.4" \
     LIBUNWIND_VERSION="1.8.1" \
@@ -29,27 +29,33 @@ WORKDIR /build
 RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-${LIBXKBCOMMON_VERSION}.tar.gz && \
     tar -xf libxkbcommon.tar.gz && \
     cd libxkbcommon-xkbcommon-${LIBXKBCOMMON_VERSION} && \
-    export LIBRARY_PATH="/usr/local/llvm-mingw/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}" && \
-    export LD_LIBRARY_PATH="/usr/local/llvm-mingw/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}" && \
+    export LIBRARY_PATH="usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}" && \
+    export LD_LIBRARY_PATH="usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}" && \
     # 64-bit
-    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
+    echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
     export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
-    LDFLAGS="-fuse-ld=lld" meson setup build_x86_64 -Denable-docs=false \
+    CFLAGS="-static-libgcc" CXXFLAGS="-static-libgcc -static-libstdc++" LDFLAGS="-static-libgcc -static-libstdc++" meson setup --prefer-static \
         --prefix=/usr/local/x86_64 --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu \
-        --native-file /opt/build64-conf.txt --buildtype "release" && \
-    ninja -C build_x86_64 && \
-    ninja -C build_x86_64 install && \
+        --native-file /opt/build64-conf.txt --buildtype "release" \
+        build_x86_64 -Denable-docs=false -Ddefault_library=static -Denable-tools=false \ 
+        -Denable-bash-completion=false -Denable-x11=false -Denable-wayland=false -Denable-xkbregistry=true && \
+    meson compile -C build_x86_64 xkbcommon:static_library && \
+    meson compile -C build_x86_64 xkbregistry:static_library && \
+    meson install -C build_x86_64 --no-rebuild --tags devel && \
     rm -rf build_x86_64 && \
     # 32-bit
-    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'x86'\nendian = 'little'" > /opt/build32-conf.txt && \
+    echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'x86'\nendian = 'little'" > /opt/build32-conf.txt && \
     export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
-    CFLAGS="-m32" LDFLAGS="-m32 -fuse-ld=lld" meson setup build_i386 -Denable-docs=false \
+    CFLAGS="-m32 -static-libgcc" CXXFLAGS="-m32 -static-libgcc -static-libstdc++" LDFLAGS="-m32 -static-libgcc -static-libstdc++" meson setup --prefer-static \
         --prefix=/usr/local/i386 --libdir=/usr/local/i386/lib/i386-linux-gnu \
-        --native-file /opt/build32-conf.txt --buildtype "release" && \
-    ninja -C build_i386 && \
-    ninja -C build_i386 install
+        --native-file /opt/build32-conf.txt --buildtype "release" \
+        build_i386 -Denable-docs=false -Ddefault_library=static -Denable-tools=false \ 
+        -Denable-bash-completion=false -Denable-x11=false -Denable-wayland=false -Denable-xkbregistry=true && \
+    meson compile -C "build_i386" xkbcommon:static_library && \
+    meson compile -C "build_i386" xkbregistry:static_library && \
+    meson install -C "build_i386" --no-rebuild --tags devel
 
 RUN wget -O ffmpeg.tar.xz https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz && \
     tar -xf ffmpeg.tar.xz && \

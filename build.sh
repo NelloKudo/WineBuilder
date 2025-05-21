@@ -10,7 +10,7 @@ Info "Welcome to WineBuilder!"
 
 ## Setting up Docker..
 mkdir -p {custompatches,ccache,output,protonfonts,sources}
-docker buildx build --progress=plain -t wine-builder .
+docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit; }
 
 ## Allow overriding variables in wine_builder.sh
 vars=(WINE_OSU USE_STAGING USE_TKG BUILD_NAME \
@@ -33,7 +33,7 @@ docker run --rm \
     --mount type=bind,source="$(pwd)"/ccache,target=/root/.ccache \
     --mount type=bind,source="$(pwd)"/sources,target=/wine/sources \
     --entrypoint "/usr/local/bin/wine_builder.sh" \
-    wine-builder || { echo "failed" && exit 1 ; }
+    wine-builder || { echo "wine build failed" && exit; }
 
 Info "FIXME: fixing up ownership of build files..."
 sudo chown -R "$(id -u)":"$(id -g)" output/

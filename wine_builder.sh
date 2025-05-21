@@ -186,8 +186,9 @@ build_wine() {
     fi
 
     # Allow Wine-Wayland to work in Steam Linux Runtime
-    export XKBCOMMON_CFLAGS="$(pkg-config --cflags xkbcommon)"
-    export XKBCOMMON_LIBS="$(pkg-config --libs xkbcommon) -Wl,-rpath='\$\$ORIGIN'"
+    XKBCOMMON_CFLAGS="$(pkg-config --static --cflags xkbcommon)"
+    XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's| -l| -l:lib|').a"
+    export XKBCOMMON_CFLAGS XKBCOMMON_LIBS
 
     # Configure and build 64-bit
     "${BUILD_DIR}/wine/configure" "${WINE_BUILD_OPTIONS[@]}" "${WINE_64_BUILD_OPTIONS[@]}"
@@ -200,8 +201,10 @@ build_wine() {
         export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
         export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
         export CROSSCC="${CROSSCC_X32}"
-        export XKBCOMMON_CFLAGS="$(pkg-config --cflags xkbcommon)"
-        export XKBCOMMON_LIBS="$(pkg-config --libs xkbcommon) -Wl,-rpath='\$\$ORIGIN'"
+        XKBCOMMON_CFLAGS="$(pkg-config --static --cflags xkbcommon)"
+        XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's| -l| -l:lib|').a"
+        export XKBCOMMON_CFLAGS XKBCOMMON_LIBS
+
         # export I386_LIBS="-latomic" required for older fsync
 
         cd "${BUILD_DIR}"
@@ -272,18 +275,6 @@ package_wine() {
         cd "${WINE_ROOT}/protonfonts"
         WINE_FONTS_DESTDIR="${BUILD_DIR}/${BUILD_NAME}/share/wine/fonts" make all-dist
         cd "${BUILD_DIR}"
-    fi
-
-    # Bundle libxkbcommon in Wine libraries, fixes Wine-Wayland in Steam Linux Runtime
-    if [[ " ${WINE_BUILD_OPTIONS[*]} " == *" --with-wayland "* ]]; then
-        Info "Wayland SLR fix: Copying libxkbcommon into Wine libraries.."
-        
-        if [ "${USE_WOW64}" == "true" ]; then
-            cp /usr/local/x86_64/lib/x86_64-linux-gnu/libxkb* "${BUILD_NAME}"/lib/wine/x86_64-unix
-        else
-            cp /usr/local/x86_64/lib/x86_64-linux-gnu/libxkb* "${BUILD_NAME}"/lib/wine/x86_64-unix
-            cp /usr/local/i386/lib/i386-linux-gnu/libxkb* "${BUILD_NAME}"/lib/wine/i386-unix
-        fi
     fi
 
     local ARCHIVE_NAME="${BUILD_NAME}${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz"
@@ -408,8 +399,9 @@ compiler_setup() {
     # wine-osu-safe compiler flags
     if [ "$WINE_OSU" = "true" ]; then
         if [ "$DEBUG" != "true" ]; then
-            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Os -ffunction-sections -fdata-sections -fno-strict-aliasing -fwrapv -mfpmath=sse -Wl,--gc-sections \
+            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Os -fno-strict-aliasing -fwrapv -mfpmath=sse \
                             -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+            [ "$USE_LLVM_MINGW" = "true" ] && _common_cflags="${_common_cflags} -ffunction-sections -fdata-sections -Wl,--gc-sections"
         else
             _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
                             -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
@@ -425,7 +417,8 @@ compiler_setup() {
         _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
     else
         # Generic builds, generic flags:
-        _GCC_FLAGS="-march=x86-64 -msse3 -mfpmath=sse -O2 -ftree-vectorize -static-libgcc"
+        _GCC_FLAGS="-march=x86-64 -msse3 -mfpmath=sse -O2 -ftree-vectorize -static-libgcc \
+                    -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
         _LD_FLAGS="-Wl,-O1,--sort-common,--as-needed"
         _CROSS_FLAGS="$_GCC_FLAGS"
         _CROSS_LD_FLAGS="$_LD_FLAGS"
