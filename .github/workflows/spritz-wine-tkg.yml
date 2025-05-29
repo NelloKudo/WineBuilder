@@ -1,4 +1,4 @@
-name: spritz-wine-tkg
+name: spritz-wine-tkg + ntsync
 
 on:
   schedule:

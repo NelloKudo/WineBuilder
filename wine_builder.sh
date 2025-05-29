@@ -141,6 +141,11 @@ _custompatcher() {
         fi
     fi
 
+    # Spritz-Wine: disable ntsync patches for non-ntsync builds
+    if [ "$TAG_FILTER" == "spritz*" ] && [ "$WINE_BRANCH" != "ntsync" ]; then
+        pattern+=(")" "-a" "(" "-not" "-regex" ".*0004-ntsync-fixes/.*\.patch")
+    fi
+
     pattern+=(")" ")")
 
     mapfile -t patchlist_tmp < <(find "${patches_dir}" -type f "${pattern[@]}" | LC_ALL=C sort -f)
