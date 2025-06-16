@@ -33,7 +33,7 @@ _configuration() {
     WINE_VERSION=''
     STAGING_VERSION=''
     WINE_BRANCH="${WINE_BRANCH:-}"
-    RELEASE_VERSION='2'
+    RELEASE_VERSION='1'
 
     # Build configuration
     # You can change the default value by changing the value after :-
@@ -64,7 +64,7 @@ _configuration() {
     if [ "$WINE_OSU" == "true" ]; then
         BUILD_NAME="wine-osu"
         USE_STAGING="true"
-        PATCHSET="remote:winello-v10.8-2"
+        PATCHSET="remote:winello-v10.10-1"
         USE_TKG="false"
     fi
 
