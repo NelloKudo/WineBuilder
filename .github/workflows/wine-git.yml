@@ -1,0 +1,38 @@
+name: wine-git
+
+on:
+  schedule:
+    - cron: '0 0 */3 * *'
+  workflow_dispatch:
+  push:
+    tags:
+      - 'wine-git*'
+
+jobs:
+  build-main:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact: ${{ steps.set-output.outputs.artifact }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Docker Setup Buildx
+      uses: docker/setup-buildx-action@v3.10.0
+      with:
+        driver: docker
+    
+    - name: Get today's date
+      id: date
+      run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+    - name: Run build.sh for main
+      run: |
+        chmod +x build.sh
+        WINE_OSU="false" ./build.sh
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: wine-git-${{ steps.date.outputs.date }}
+        path: ./*.tar.xz
