@@ -662,10 +662,6 @@ if [ "$WINE_OSU" = "true" ]; then
     # Main osu! build
     Info "Building wine-osu:"
     main "$@" true true false true false
-
-    # Also do a debug build
-    Info "Building wine-osu-debug:"
-    main "$@" true true true false false
 else
     # Leave default settings for usual builds
     Info "Building your custom Wine:"
