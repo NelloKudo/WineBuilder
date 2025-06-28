@@ -279,7 +279,7 @@ package_wine() {
         # Launch fonts build script
         Info "Compiling and installing fonts from Proton..."
         cd "${WINE_ROOT}/protonfonts"
-        WINE_FONTS_DESTDIR="${BUILD_DIR}/${BUILD_NAME}/share/wine/fonts" make all-dist
+        WINE_FONTS_DESTDIR="${BUILD_DIR}/${BUILD_NAME}/share/wine/fonts" make -j$(($(nproc) + 1)) all-dist
         cd "${BUILD_DIR}"
     fi
 
