@@ -33,7 +33,7 @@ docker run --rm \
     --mount type=bind,source="$(pwd)"/ccache,target=/root/.ccache \
     --mount type=bind,source="$(pwd)"/sources,target=/wine/sources \
     --entrypoint "/usr/local/bin/wine_builder.sh" \
-    wine-builder || { echo "wine build failed" && exit; }
+    wine-builder "$@" || { echo "wine build failed" && exit; }
 
 Info "FIXME: fixing up ownership of build files..."
 sudo chown -R "$(id -u)":"$(id -g)" output/

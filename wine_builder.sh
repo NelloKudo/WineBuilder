@@ -494,10 +494,6 @@ patch_setup() {
 ## ------------------------------------------------------------
 
 main() {
-
-    # Resetting configuration for double main runs
-    _configuration "$@"
-
     cd "${ORIGPATH}"
 
     # Base paths
@@ -507,6 +503,9 @@ main() {
     SOURCE_NAME="wine"
 
     Info "Using release version $RELEASE_VERSION"
+    if [ "${DEBUG}" = "true" ]; then
+        Info "Enabling debug build.."
+    fi
 
     build_setup
     compiler_setup
