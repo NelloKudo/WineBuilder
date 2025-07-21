@@ -64,8 +64,8 @@ _configuration() {
     if [ "$WINE_OSU" == "true" ]; then
         BUILD_NAME="wine-osu"
         USE_STAGING="true"
-        RELEASE_VERSION="2"
-        PATCHSET="remote:winello-v10.10-$RELEASE_VERSION"
+        RELEASE_VERSION="1"
+        PATCHSET="remote:winello-v10.12-$RELEASE_VERSION"
         USE_TKG="false"
     fi
 
