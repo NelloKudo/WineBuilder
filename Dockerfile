@@ -11,6 +11,7 @@ FROM main-deps AS manual-deps
 
 ENV FFMPEG_VERSION="7.1.1" \
     LIBXKBCOMMON_VERSION="1.9.2" \
+    GSTREAMER_VERSION="1.22" \
     LLVM_MINGW_VERSION="20250402" \
     XZ_VERSION="5.6.4" \
     LIBUNWIND_VERSION="1.8.1" \
@@ -56,6 +57,22 @@ RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archiv
     meson compile -C "build_i386" xkbcommon:static_library && \
     meson compile -C "build_i386" xkbregistry:static_library && \
     meson install -C "build_i386" --no-rebuild --tags devel
+
+RUN wget -O gstreamer.tar.gz https://gitlab.freedesktop.org/gstreamer/gstreamer/-/archive/${GSTREAMER_VERSION}/gstreamer-${GSTREAMER_VERSION}.tar.gz && \
+    tar -xf gstreamer.tar.gz && \
+    cd gstreamer-${GSTREAMER_VERSION} && \
+    # 64-bit build
+    echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
+    meson setup build_x86_64 --prefix=/usr/local/x86_64 --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu --native-file /opt/build64-conf.txt && \
+    ninja -C build_x86_64 && \
+    ninja -C build_x86_64 install && \
+    rm -rf build_x86_64 && \
+    # 32-bit build
+    echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'x86'\nendian = 'little'" > /opt/build32-conf.txt && \
+    meson setup build_i386 --prefix=/usr/local/i386 --libdir=/usr/local/i386/lib/i386-linux-gnu --native-file /opt/build32-conf.txt && \
+    ninja -C build_i386 && \
+    ninja -C build_i386 install && \
+    rm -rf build_i386
 
 RUN wget -O ffmpeg.tar.xz https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz && \
     tar -xf ffmpeg.tar.xz && \
