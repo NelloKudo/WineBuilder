@@ -30,9 +30,11 @@ for var in "${vars[@]}"; do
 done
 
 ## Building..
+chmod +x wine_builder.sh
 docker run --rm \
     --name wine-builder \
     "${WB_ENV_ARGS[@]}" \
+    --mount type=bind,source="$(pwd)"/wine_builder.sh,target=/usr/local/bin/wine_builder.sh \
     --mount type=bind,source="$(pwd)"/custompatches,target=/wine/custompatches \
     --mount type=bind,source="$(pwd)"/output,target=/wine \
     --mount type=bind,source="$(pwd)"/protonfonts,target=/wine/protonfonts \
