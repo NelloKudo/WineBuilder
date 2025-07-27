@@ -26,6 +26,12 @@ _configuration() {
     # Toggle to enable/disable Wine-tkg.
     USE_TKG="${USE_TKG:-false}"
 
+    # Toggle to enable/disable Wine-CachyOS.
+    USE_CACHY="${USE_CACHY:-false}"
+
+    # Toggle to enable/disable Wine-Valve.
+    USE_VALVE="${USE_VALVE:-false}"
+
     # Set your custom build name here:
     BUILD_NAME="${BUILD_NAME:-wine-wb}"
 
@@ -53,6 +59,8 @@ _configuration() {
 
     # Other links
     WINE_TKG_URL="https://github.com/Kron4ek/wine-tkg"
+    WINE_CACHY_URL="https://github.com/CachyOS/wine-cachyos"
+    WINE_VALVE_URL="https://github.com/ValveSoftware/wine"
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
     PATCHSET="${PATCHSET:-}" # leave empty for loose patches in custompatches/
@@ -69,15 +77,16 @@ _configuration() {
         USE_TKG="false"
     fi
 
-    # tkg-specific settings
-    if [ "$USE_TKG" == "true" ]; then
-        USE_STAGING="false"
-        WINE_URL="$WINE_TKG_URL"
+    # tkg/cachy/valve settings
+    for variant in tkg cachy valve; do
+        use_flag="USE_${variant^^}"
+        url_var="WINE_${variant^^}_URL"
 
-        if [[ "$BUILD_NAME" != *"-tkg" ]]; then
-            BUILD_NAME="$BUILD_NAME-tkg"
+        if [ "${!use_flag}" = "true" ]; then
+            USE_STAGING="false"
+            WINE_URL="${!url_var}"
         fi
-    fi
+    done
 }
 
 ## ------------------------------------------------------------
@@ -95,7 +104,7 @@ _staging_patcher() {
         fi
     else
         # Also disabling problematic Staging patchset
-        STAGING_ARGS+=" -W winedevice-Default_Drivers"
+        STAGING_ARGS+=" -W winedevice-Default_Drivers" || Info "Problematic patchset not found, ignoring.."
     fi
 
     local staging_patcher
@@ -521,14 +530,14 @@ main() {
     git config --global http.lowSpeedLimit 1000
     git config --global http.lowSpeedTime 600
 
-    # Change source name if the WINE_URL isn't the default one (or fallback) to prevent conflicts
-    if [ "$WINE_URL" != "https://github.com/wine-mirror/wine.git" ] && [ "$WINE_URL" != "$WINE_FALLBACK_URL" ]; then
-        # Add check for tkg
-        if [ "$WINE_URL" = "$WINE_TKG_URL" ]; then
-            SOURCE_NAME="wine-tkg"
-        else
-            SOURCE_NAME="wine-custom"
-        fi
+    # Change source name if the WINE_URL isn't the default or fallback one
+    if [[ "$WINE_URL" != "https://github.com/wine-mirror/wine.git" && "$WINE_URL" != "$WINE_FALLBACK_URL" ]]; then
+        case "$WINE_URL" in
+            "$WINE_TKG_URL")    SOURCE_NAME="wine-tkg" ;;
+            "$WINE_CACHY_URL")  SOURCE_NAME="wine-cachy" ;;
+            "$WINE_VALVE_URL")  SOURCE_NAME="wine-valve" ;;
+            *)                  SOURCE_NAME="wine-custom" ;;
+        esac
     fi
 
     # Initialize/update Wine source
@@ -556,8 +565,7 @@ main() {
         git checkout "${WINE_VERSION}" || Error "Failed to checkout Wine version ${WINE_VERSION}"
     else
         Info "Using latest Wine version"
-        git checkout master
-        git pull origin master
+        (git checkout master && git pull origin master) || Info "Master not found for this repository, using default commit.."
     fi
     WINE_VERSION=$(git describe --tags --abbrev=0 | cut -f2 -d'-')
     Info "Building Wine version: ${WINE_VERSION}"
@@ -636,10 +644,13 @@ main() {
         tools/make_specfiles
     }
 
-    chmod +x tools/make_makefiles
-    tools/make_makefiles
-    autoreconf -fiv
+    # Only ask for non-cachy/valve builds
+    if [[ "$USE_CACHY" == "false" && "$USE_VALVE" == "false" ]]; then
+        chmod +x tools/make_makefiles
+        tools/make_makefiles
+    fi
 
+    autoreconf -fiv
     # Build and package
     build_wine
     package_wine
