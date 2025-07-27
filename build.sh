@@ -10,7 +10,12 @@ Info "Welcome to WineBuilder!"
 
 ## Setting up Docker..
 mkdir -p {custompatches,ccache,output,protonfonts,sources}
-docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit; }
+
+Info "Pulling Docker image..."
+docker pull nellokudo/wine-builder:latest || { echo "docker pull failed" && exit 1; }
+
+# Or build the image locally from the Dockerfile
+# docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit; }
 
 ## Allow overriding variables in wine_builder.sh
 vars=(WINE_OSU USE_STAGING USE_TKG BUILD_NAME \
