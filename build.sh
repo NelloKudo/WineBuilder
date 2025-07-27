@@ -13,6 +13,7 @@ mkdir -p {custompatches,ccache,output,protonfonts,sources}
 
 Info "Pulling Docker image..."
 docker pull nellokudo/wine-builder:latest || { echo "docker pull failed" && exit 1; }
+docker tag nellokudo/wine-builder:latest wine-builder:latest
 
 # Or build the image locally from the Dockerfile
 # docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit; }
