@@ -21,13 +21,13 @@ _configuration() {
     WINE_OSU="${WINE_OSU:-true}"
 
     # Toggle to enable/disable Wine-Staging.
-    USE_STAGING="${USE_STAGING:-true}"
+    USE_STAGING="${USE_STAGING:-false}"
 
     # Toggle to enable/disable Wine-tkg.
     USE_TKG="${USE_TKG:-false}"
 
     # Toggle to enable/disable Wine-CachyOS.
-    USE_CACHY="${USE_CACHY:-false}"
+    USE_CACHY="${USE_CACHY:-true}"
 
     # Toggle to enable/disable Wine-Valve.
     USE_VALVE="${USE_VALVE:-false}"
@@ -70,10 +70,10 @@ _configuration() {
 
     # osu!-specific settings
     if [ "$WINE_OSU" == "true" ]; then
-        BUILD_NAME="wine-osu"
+        BUILD_NAME="wine-osu-cachy"
         USE_STAGING="true"
         RELEASE_VERSION="1"
-        PATCHSET="remote:winello-v10.12-$RELEASE_VERSION"
+        PATCHSET="remote:winello-cachy-v10.0-$RELEASE_VERSION"
         USE_TKG="false"
     fi
 
