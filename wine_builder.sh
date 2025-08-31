@@ -73,7 +73,7 @@ _configuration() {
         BUILD_NAME="wine-osu"
         USE_STAGING="true"
         RELEASE_VERSION="1"
-        PATCHSET="remote:winello-v10.12-$RELEASE_VERSION"
+        PATCHSET="remote:winello-v10.14-$RELEASE_VERSION"
         USE_TKG="false"
     fi
 
