@@ -190,6 +190,7 @@ RUN apt-get -y update && \
     apt-get -y install \
         gawk libkrb5-dev libkrb5-dev:i386 \
         libgstreamer1.0-dev libgstreamer1.0-dev:i386 \
+        libpcap0.8 libpcap0.8-dev libpcap0.8:i386 libpcap0.8-dev:i386 \
         libgstreamer-plugins-base1.0-dev libgstreamer-plugins-base1.0-dev:i386 && \
     apt-get clean && \
     apt-get autoclean && \
