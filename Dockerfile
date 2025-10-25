@@ -11,6 +11,7 @@ FROM main-deps AS manual-deps
 
 ENV FFMPEG_VERSION="7.1.1" \
     LIBXKBCOMMON_VERSION="1.9.2" \
+    LIBXML2_VERSION="2.13.9" \
     GSTREAMER_VERSION="1.22" \
     LLVM_MINGW_VERSION="20250402" \
     XZ_VERSION="5.6.4" \
@@ -57,6 +58,33 @@ RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archiv
     meson compile -C "build_i386" xkbcommon:static_library && \
     meson compile -C "build_i386" xkbregistry:static_library && \
     meson install -C "build_i386" --no-rebuild --tags devel
+
+RUN wget -O libxml2.tar.gz https://github.com/GNOME/libxml2/archive/refs/tags/v${LIBXML2_VERSION}.tar.gz && \
+    tar -xf libxml2.tar.gz && \
+    cd libxml2-${LIBXML2_VERSION} && \
+    export LIBRARY_PATH="usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}" && \
+    export LD_LIBRARY_PATH="usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}" && \
+    # 64-bit
+    export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
+    CFLAGS="-fPIC -static-libgcc" CXXFLAGS="-fPIC -static-libgcc -static-libstdc++" LDFLAGS="-static-libgcc -static-libstdc++" \
+    ./autogen.sh --prefix=/usr/local/x86_64 --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu \
+    --enable-static --disable-shared \
+    --without-python --without-lzma --without-zlib \
+    --host=x86_64-linux-gnu && \
+    make -j$(nproc) && \
+    make install && \
+    make distclean && \
+    # 32-bit
+    export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
+    CFLAGS="-fPIC -m32 -static-libgcc" CXXFLAGS="-fPIC -m32 -static-libgcc -static-libstdc++" LDFLAGS="-m32 -static-libgcc -static-libstdc++" \
+    ./autogen.sh --prefix=/usr/local/i386 --libdir=/usr/local/i386/lib/i386-linux-gnu \
+    --enable-static --disable-shared \
+    --without-python --without-lzma --without-zlib \
+    --host=i686-linux-gnu && \
+    make -j$(nproc) && \
+    make install
 
 RUN wget -O gstreamer.tar.gz https://gitlab.freedesktop.org/gstreamer/gstreamer/-/archive/${GSTREAMER_VERSION}/gstreamer-${GSTREAMER_VERSION}.tar.gz && \
     tar -xf gstreamer.tar.gz && \
