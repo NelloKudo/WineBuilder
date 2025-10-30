@@ -620,7 +620,6 @@ main() {
     if [ "${DEBUG}" != "true" ]; then # let wine strip on install
         awk -i inplace '/STRIPPROG=/ { sub(/ %s/, " %s -s") }1' "${BUILD_DIR}/wine/tools/makedep.c"
         # shellcheck disable=SC2016
-        sed -i 's|stripcmd=$stripprog|stripcmd="$stripprog -s"|g' "${BUILD_DIR}/wine/tools/install-sh"
     fi
 
     # Initialize git for make_makefiles
