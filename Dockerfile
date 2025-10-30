@@ -214,6 +214,9 @@ RUN wget -O gcc-mingw.tar.xz \
     rm -rf /usr/local/gcc-mingw && \
     mv /usr/local/xpack-mingw-w64-gcc-${GCC_MINGW_VERSION} /usr/local/gcc-mingw
 
+RUN wget -O /usr/include/linux/ntsync.h  \
+    https://raw.githubusercontent.com/zen-kernel/zen-kernel/refs/tags/v6.17-zen1/include/uapi/linux/ntsync.h
+
 RUN apt-get -y update && \
     apt-get -y install \
         gawk libkrb5-dev libkrb5-dev:i386 \
