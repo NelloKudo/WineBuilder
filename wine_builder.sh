@@ -71,9 +71,8 @@ _configuration() {
     # osu!-specific settings
     if [ "$WINE_OSU" == "true" ]; then
         BUILD_NAME="wine-osu"
-        USE_CACHY="true"
-        RELEASE_VERSION="1"
-        PATCHSET="remote:winello-cachyos-v10.0-$RELEASE_VERSION"
+        RELEASE_VERSION="2"
+        PATCHSET="remote:winello-v10.15-$RELEASE_VERSION"
         USE_TKG="false"
     fi
 
