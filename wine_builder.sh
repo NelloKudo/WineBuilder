@@ -71,9 +71,8 @@ _configuration() {
     # osu!-specific settings
     if [ "$WINE_OSU" == "true" ]; then
         BUILD_NAME="wine-osu-cachy"
-        USE_STAGING="true"
-        RELEASE_VERSION="1"
-        PATCHSET="remote:winello-cachy-v10.0-$RELEASE_VERSION"
+        RELEASE_VERSION="2"
+        PATCHSET="remote:winello-cachyos-v10.0-$RELEASE_VERSION"
         USE_TKG="false"
     fi
 
@@ -344,6 +343,7 @@ build_setup() {
         --without-v4l2
         --without-netapi
         --disable-msv1_0
+        --disable-lsteamclient
     )
 
     if [ "${DEBUG}" = "true" ]; then
