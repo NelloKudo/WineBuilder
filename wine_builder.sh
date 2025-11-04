@@ -71,7 +71,7 @@ _configuration() {
     # osu!-specific settings
     if [ "$WINE_OSU" == "true" ]; then
         BUILD_NAME="wine-osu"
-        RELEASE_VERSION="2"
+        RELEASE_VERSION="3"
         PATCHSET="remote:winello-v10.15-$RELEASE_VERSION"
         USE_TKG="false"
     fi
@@ -420,7 +420,7 @@ compiler_setup() {
     # wine-osu-safe compiler flags
     if [ "$WINE_OSU" = "true" ]; then
         if [ "$DEBUG" != "true" ]; then
-            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Os -fno-strict-aliasing -fwrapv -mfpmath=sse \
+            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse \
                             -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
             [ "$USE_LLVM_MINGW" = "true" ] && _common_cflags="${_common_cflags} -ffunction-sections -fdata-sections -Wl,--gc-sections"
         else
