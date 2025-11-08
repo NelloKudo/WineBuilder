@@ -86,7 +86,7 @@ RUN wget -O libxml2.tar.gz https://github.com/GNOME/libxml2/archive/refs/tags/v$
     make -j$(nproc) && \
     make install
 
-RUN wget -O gstreamer.tar.gz https://gitlab.freedesktop.org/gstreamer/gstreamer/-/archive/${GSTREAMER_VERSION}/gstreamer-${GSTREAMER_VERSION}.tar.gz && \
+RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs/tags/${GSTREAMER_VERSION}.tar.gz && \
     tar -xf gstreamer.tar.gz && \
     cd gstreamer-${GSTREAMER_VERSION} && \
     # 64-bit build
