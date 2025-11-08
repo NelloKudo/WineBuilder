@@ -2,6 +2,9 @@ name: DockerHub Container CI
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'Dockerfile'
 
 jobs:
   docker:
