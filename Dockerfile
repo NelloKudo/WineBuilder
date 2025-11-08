@@ -28,6 +28,11 @@ RUN wget -O llvm-mingw-${LLVM_MINGW_VERSION}.tar.xz \
 
 WORKDIR /build
 
+RUN apt-get -y update && \
+    apt-get -y install python3-pip && \
+    pip3 install --upgrade pip && \
+    pip3 install --upgrade meson ninja
+
 RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-${LIBXKBCOMMON_VERSION}.tar.gz && \
     tar -xf libxkbcommon.tar.gz && \
     cd libxkbcommon-xkbcommon-${LIBXKBCOMMON_VERSION} && \
@@ -220,9 +225,7 @@ RUN wget -O /usr/include/linux/ntsync.h  \
 RUN apt-get -y update && \
     apt-get -y install \
         gawk libkrb5-dev libkrb5-dev:i386 \
-        libgstreamer1.0-dev libgstreamer1.0-dev:i386 \
         libpcap0.8 libpcap0.8-dev libpcap0.8:i386 libpcap0.8-dev:i386 \
-        libgstreamer-plugins-base1.0-dev libgstreamer-plugins-base1.0-dev:i386 && \
     apt-get clean && \
     apt-get autoclean && \
     rm -rf /build/* /var/lib/apt/lists/*
