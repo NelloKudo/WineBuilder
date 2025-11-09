@@ -18,10 +18,10 @@ Error() {
 _configuration() {
     # Toggle to disable osu!-specific patches and workarounds.
     # Set this to false to build classic Wine-Staging by default.
-    WINE_OSU="${WINE_OSU:-true}"
+    WINE_OSU="${WINE_OSU:-false}"
 
     # Toggle to enable/disable Wine-Staging.
-    USE_STAGING="${USE_STAGING:-true}"
+    USE_STAGING="${USE_STAGING:-false}"
 
     # Toggle to enable/disable Wine-tkg.
     USE_TKG="${USE_TKG:-false}"
@@ -36,13 +36,13 @@ _configuration() {
     USE_VALVE="${USE_VALVE:-false}"
 
     # Toggle to enable/disable WineGDK.
-    USE_GDK="${USE_GDK:-false}"
+    USE_GDK="${USE_GDK:-true}"
 
     # Set your custom build name here:
     BUILD_NAME="${BUILD_NAME:-wine-wb}"
 
     # Wine version settings
-    WINE_VERSION=''
+    WINE_VERSION='1b2e74f4fb45eee75962a6848ad80b1db272f46c'
     STAGING_VERSION=''
     WINE_BRANCH="${WINE_BRANCH:-}"
     RELEASE_VERSION='1'
