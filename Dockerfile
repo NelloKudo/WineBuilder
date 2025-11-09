@@ -1,4 +1,4 @@
-FROM registry.gitlab.steamos.cloud/proton/sniper/sdk:3.0.20250210.116596-0 AS main-deps
+FROM registry.gitlab.steamos.cloud/proton/sniper/sdk:3.0.20250519.130773-0 AS main-deps
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PATH="/usr/lib/gcc-14/bin:$PATH"
@@ -108,15 +108,41 @@ RUN wget -O libxml2.tar.gz https://github.com/GNOME/libxml2/archive/refs/tags/v$
 RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs/tags/${GSTREAMER_VERSION}.tar.gz && \
     tar -xf gstreamer.tar.gz && \
     cd gstreamer-${GSTREAMER_VERSION} && \
+    export LIBRARY_PATH="usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}" && \
+    export LD_LIBRARY_PATH="usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}" && \
     # 64-bit build
     echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
-    meson setup build_x86_64 --prefix=/usr/local/x86_64 --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu --native-file /opt/build64-conf.txt && \
+    export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
+    meson setup build_x86_64 \
+        --prefix=/usr/local/x86_64 \
+        --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu \
+        --native-file /opt/build64-conf.txt \
+        -Dintrospection=disabled -Dgobject-cast-checks=disabled -Dglib-asserts=disabled -Dglib-checks=disabled \
+        -Dnls=disabled -Dexamples=disabled -Dtests=disabled -Ddoc=disabled \
+        -Dbenchmarks=disabled -Dtools=disabled && \
     ninja -C build_x86_64 && \
     ninja -C build_x86_64 install && \
     rm -rf build_x86_64 && \
     # 32-bit build
-    echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'x86'\nendian = 'little'" > /opt/build32-conf.txt && \
-    meson setup build_i386 --prefix=/usr/local/i386 --libdir=/usr/local/i386/lib/i386-linux-gnu --native-file /opt/build32-conf.txt && \
+    echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[properties]\nc_args = ['-m32', '-msse2', '-mfpmath=sse']\ncpp_args = ['-m32', '-msse2', '-mfpmath=sse']\nc_link_args = ['-m32']\ncpp_link_args = ['-m32']\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'i686'\nendian = 'little'" > /opt/build32-conf.txt && \
+    export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
+    CFLAGS="-m32 -msse2 -mfpmath=sse -fPIC -O2" \
+    LDFLAGS="-m32" \
+    meson setup build_i386 \
+        --prefix=/usr/local/i386 \
+        --libdir=/usr/local/i386/lib/i386-linux-gnu \
+        --native-file /opt/build32-conf.txt \
+        -Dintrospection=disabled -Dgobject-cast-checks=disabled -Dglib-asserts=disabled -Dglib-checks=disabled \
+        -Dnls=disabled -Dexamples=disabled -Dtests=disabled -Ddoc=disabled \
+        -Dbad=disabled -Dbenchmarks=disabled -Dges=disabled -Dglib_debug=disabled \
+        -Dgpl=enabled -Dgst-examples=disabled -Dgst-plugins-base:gl-graphene=disabled -Dgst-plugins-base:libvisual=disabled \
+        -Dgst-plugins-base:tremor=disabled -Dgst-plugins-good:amrnb=disabled -Dgst-plugins-good:amrwbdec=disabled -Dgst-plugins-good:lame=disabled \
+        -Dgst-plugins-good:rpicamsrc=disabled -Dgstreamer:bash-completion=disabled -Dgstreamer:dbghelp=disabled -Dgstreamer:ptp-helper=disabled \
+        -Dlibav=disabled -Dlibnice=disabled -Dorc-source=system -Dpython=disabled \
+        -Dqt5=disabled -Dqt6=disabled -Drs=disabled -Drtsp_server=disabled \
+        -Dsharp=disabled -Dugly=disabled -Dvaapi=disabled && \
     ninja -C build_i386 && \
     ninja -C build_i386 install && \
     rm -rf build_i386
@@ -241,7 +267,6 @@ RUN apt-get -y update && \
         libpcap0.8:i386 libpcap0.8-dev:i386 && \
     apt-get clean && apt-get autoclean && \
     rm -rf /build/* /var/lib/apt/lists/*
-
 
 FROM manual-deps AS temp-layer
 
