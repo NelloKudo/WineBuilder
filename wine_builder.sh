@@ -29,6 +29,9 @@ _configuration() {
     # Toggle to enable/disable Wine-CachyOS.
     USE_CACHY="${USE_CACHY:-false}"
 
+    # Toggle to enable/disable Wine-EM.
+    USE_EM="${USE_EM:-false}"
+
     # Toggle to enable/disable Wine-Valve.
     USE_VALVE="${USE_VALVE:-false}"
 
@@ -60,6 +63,7 @@ _configuration() {
     # Other links
     WINE_TKG_URL="https://github.com/Kron4ek/wine-tkg"
     WINE_CACHY_URL="https://github.com/CachyOS/wine-cachyos"
+    WINE_EM_URL="https://github.com/Etaash-mathamsetty/wine-valve.git"
     WINE_VALVE_URL="https://github.com/ValveSoftware/wine"
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
@@ -76,8 +80,8 @@ _configuration() {
         USE_TKG="false"
     fi
 
-    # tkg/cachy/valve settings
-    for variant in tkg cachy valve; do
+    # wine forks settings
+    for variant in tkg cachy em valve; do
         use_flag="USE_${variant^^}"
         url_var="WINE_${variant^^}_URL"
 
@@ -541,6 +545,7 @@ main() {
         case "$WINE_URL" in
             "$WINE_TKG_URL")    SOURCE_NAME="wine-tkg" ;;
             "$WINE_CACHY_URL")  SOURCE_NAME="wine-cachy" ;;
+            "$WINE_EM_URL")     SOURCE_NAME="wine-em" ;;
             "$WINE_VALVE_URL")  SOURCE_NAME="wine-valve" ;;
             *)                  SOURCE_NAME="wine-custom" ;;
         esac
@@ -580,6 +585,15 @@ main() {
     if [ -n "${WINE_BRANCH}" ]; then
         git switch "${WINE_BRANCH}"
         BUILD_NAME="$BUILD_NAME-$WINE_BRANCH"
+    fi
+
+    # HACK: EM-based Wine builds currently have gstreamer surfaceless patches
+    # and media-converter ones that need patched GStreamer/FFmpeg to work: reverting those.
+    if [ "$WINE_URL" == "$WINE_EM_URL" ]; then
+        Info "Wine-EM detected: reverting surfaceless gst/winedmo commits.."
+        git revert --no-commit 2946c8a686fdb57f6becde3cd9c71bc347fb65cd
+        git revert --no-commit bd2002fe57c0cb630ef3d4d825a47f3b4e7dc132
+        git revert --no-commit 063a29bc8ba05a97152b2f9a97ad7ab12007e1e7
     fi
 
     # Initialize/update Wine-Staging source
@@ -649,8 +663,8 @@ main() {
         tools/make_specfiles
     }
 
-    # Only ask for non-cachy/valve builds
-    if [[ "$USE_CACHY" == "false" && "$USE_VALVE" == "false" ]]; then
+    # Only ask for non-valve based builds
+    if [[ "$USE_CACHY" == "false" && "$USE_EM" == "false" && "$USE_VALVE" == "false" ]]; then
         chmod +x tools/make_makefiles
         tools/make_makefiles
     fi
