@@ -18,6 +18,10 @@ ENV FFMPEG_VERSION="7.1.1" \
     LIBUNWIND_VERSION="1.8.1" \
     GCC_MINGW_VERSION="14.2.0-1" \
     LIBGLVND_VERSION="1.7.0" \
+    MESON_VERSION="1.9.1" \
+    NINJA_VERSION="1.13.0" \
+    RUSTUP_VERSION="1.28.2" \
+    RUST_VERSION="1.91.0" \
     PATH="/usr/local/llvm-mingw/bin:$PATH"
 
 RUN wget -O llvm-mingw-${LLVM_MINGW_VERSION}.tar.xz \
@@ -31,7 +35,17 @@ WORKDIR /build
 RUN apt-get -y update && \
     apt-get -y install python3-pip && \
     pip3 install --upgrade pip && \
-    pip3 install --upgrade meson ninja
+    pip3 install --upgrade meson==${MESON_VERSION} ninja==${NINJA_VERSION}
+
+RUN wget -O rustup-init.sh https://raw.githubusercontent.com/rust-lang/rustup/${RUSTUP_VERSION}/rustup-init.sh && \
+    chmod +x rustup-init.sh && \
+    ./rustup-init.sh -y --default-toolchain ${RUST_VERSION} && \
+    rm rustup-init.sh && \
+    . "$HOME/.cargo/env" && \
+    rustup component add rust-src rustfmt clippy && \
+    ln -sf "$HOME/.cargo/bin/cargo" /usr/local/bin/cargo && \
+    ln -sf "$HOME/.cargo/bin/rustc" /usr/local/bin/rustc && \
+    ln -sf "$HOME/.cargo/bin/rustup" /usr/local/bin/rustup
 
 RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-${LIBXKBCOMMON_VERSION}.tar.gz && \
     tar -xf libxkbcommon.tar.gz && \
@@ -223,12 +237,11 @@ RUN wget -O /usr/include/linux/ntsync.h  \
     https://raw.githubusercontent.com/zen-kernel/zen-kernel/refs/tags/v6.17-zen1/include/uapi/linux/ntsync.h
 
 RUN apt-get -y update && \
-    apt-get -y install \
-        gawk libkrb5-dev libkrb5-dev:i386 \
-        libpcap0.8 libpcap0.8-dev libpcap0.8:i386 libpcap0.8-dev:i386 \
-    apt-get clean && \
-    apt-get autoclean && \
+    apt-get -y install gawk libkrb5-dev libkrb5-dev:i386 libpcap0.8 libpcap0.8-dev \
+        libpcap0.8:i386 libpcap0.8-dev:i386 && \
+    apt-get clean && apt-get autoclean && \
     rm -rf /build/* /var/lib/apt/lists/*
+
 
 FROM manual-deps AS temp-layer
 
@@ -236,4 +249,3 @@ COPY wine_builder.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/wine_builder.sh
 
 WORKDIR /wine
-
