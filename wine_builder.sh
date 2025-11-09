@@ -35,6 +35,9 @@ _configuration() {
     # Toggle to enable/disable Wine-Valve.
     USE_VALVE="${USE_VALVE:-false}"
 
+    # Toggle to enable/disable WineGDK.
+    USE_GDK="${USE_GDK:-false}"
+
     # Set your custom build name here:
     BUILD_NAME="${BUILD_NAME:-wine-wb}"
 
@@ -65,6 +68,7 @@ _configuration() {
     WINE_CACHY_URL="https://github.com/CachyOS/wine-cachyos"
     WINE_EM_URL="https://github.com/Etaash-mathamsetty/wine-valve.git"
     WINE_VALVE_URL="https://github.com/ValveSoftware/wine"
+    WINE_GDK_URL="https://github.com/Weather-OS/WineGDK.git"
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
     PATCHSET="${PATCHSET:-}" # leave empty for loose patches in custompatches/
@@ -81,7 +85,7 @@ _configuration() {
     fi
 
     # wine forks settings
-    for variant in tkg cachy em valve; do
+    for variant in tkg cachy em valve gdk; do
         use_flag="USE_${variant^^}"
         url_var="WINE_${variant^^}_URL"
 
@@ -152,11 +156,6 @@ _custompatcher() {
         if [ "${CRAP_AUDIO}" = "true" ]; then
             pattern+=(")" "-a" "(" "-not" "-regex" ".*-audio\/.*\.patch")
         fi
-    fi
-
-    # Spritz-Wine: disable ntsync patches for non-ntsync builds
-    if [ "$TAG_FILTER" == "spritz*" ] && [ "$WINE_BRANCH" != "ntsync" ]; then
-        pattern+=(")" "-a" "(" "-not" "-regex" ".*0004-ntsync-fixes/.*\.patch")
     fi
 
     pattern+=(")" ")")
@@ -543,10 +542,11 @@ main() {
     # Change source name if the WINE_URL isn't the default or fallback one
     if [[ "$WINE_URL" != "https://github.com/wine-mirror/wine.git" && "$WINE_URL" != "$WINE_FALLBACK_URL" ]]; then
         case "$WINE_URL" in
-            "$WINE_TKG_URL")    SOURCE_NAME="wine-tkg" ;;
-            "$WINE_CACHY_URL")  SOURCE_NAME="wine-cachy" ;;
-            "$WINE_EM_URL")     SOURCE_NAME="wine-em" ;;
-            "$WINE_VALVE_URL")  SOURCE_NAME="wine-valve" ;;
+            "$WINE_TKG_URL")    SOURCE_NAME="wine-tkg"    ;;
+            "$WINE_CACHY_URL")  SOURCE_NAME="wine-cachy"  ;;
+            "$WINE_EM_URL")     SOURCE_NAME="wine-em"     ;;
+            "$WINE_VALVE_URL")  SOURCE_NAME="wine-valve"  ;;
+            "$WINE_GDK_URL")    SOURCE_NAME="wine-gdk"    ;;
             *)                  SOURCE_NAME="wine-custom" ;;
         esac
     fi
