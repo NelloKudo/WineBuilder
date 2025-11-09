@@ -1,9 +1,9 @@
-name: wine-osu-winello
+name: wine (generic)
 on:
   workflow_dispatch:
   push:
     tags:
-      - 'wine-osu*'
+      - 'wine*'
 
 jobs:
   build:
@@ -48,7 +48,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wine-osu-${{ matrix.build_type }}
+          name: wine-${{ matrix.build_type }}
           path: ./*.tar.xz
 
   release:
@@ -59,13 +59,13 @@ jobs:
       - name: Download debug artifact
         uses: actions/download-artifact@v4
         with:
-          name: wine-osu-debug
+          name: wine-debug
           path: ./artifacts/
       
       - name: Download release artifact
         uses: actions/download-artifact@v4
         with:
-          name: wine-osu-release
+          name: wine-release
           path: ./artifacts/
       
       - name: Create GitHub release
