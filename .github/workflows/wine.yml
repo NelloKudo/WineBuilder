@@ -1,9 +1,9 @@
-name: wine (generic)
+name: winegdk (generic)
 on:
   workflow_dispatch:
   push:
     tags:
-      - 'wine*'
+      - 'winegdk*'
 
 jobs:
   build:
