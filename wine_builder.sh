@@ -578,7 +578,13 @@ main() {
         Info "Using latest Wine version"
         (git checkout master && git pull origin master) || Info "Master not found for this repository, using default commit.."
     fi
-    WINE_VERSION=$(git describe --tags --abbrev=0 | cut -f2 -d'-')
+
+    WINE_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | cut -f2 -d'-') || Info "Git describe failed.."
+    if [[ -z "$WINE_VERSION" ]]; then
+        WINE_VERSION=10.0
+        Info "No tags found or extraction failed, defaulting to 10.0"
+    fi
+
     Info "Building Wine version: ${WINE_VERSION}"
 
     # Custom settings for branches
@@ -648,7 +654,7 @@ main() {
     git config user.name "winebuild"
     git init
     git add --all
-    git commit -m "makepkg"
+    git commit -m "makepkg" || Info "Not committing.."
 
     # Generate required files
     [ -e dlls/winevulkan/make_vulkan ] && {
