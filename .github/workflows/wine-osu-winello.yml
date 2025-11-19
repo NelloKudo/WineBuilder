@@ -18,6 +18,13 @@ jobs:
 
     name: Build Wine (${{ matrix.build_type }})
     steps:
+      - name: Debloat GitHub CI
+        uses: endersonmenezes/free-disk-space@v2
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+
       - uses: actions/checkout@v4
 
       - name: Restore ccache
