@@ -188,14 +188,23 @@ build_wine() {
     mkdir -p build64
     cd build64
 
-    export PKG_CONFIG_LIBDIR="/usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
-    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
-    export x86_64_CC="${CROSSCC_X64}"
-    export i386_CC="${CROSSCC_X32}"
-    export CROSSCC="${CROSSCC_X64}"
+    if [ "${BUILD_ARCH}" = "aarch64" ]; then
+        export PKG_CONFIG_LIBDIR="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
+        export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
+        export aarch64_CC="${CROSSCC_X64}"
+        export CROSSCC="${CROSSCC_X64}"
+    else
+        export PKG_CONFIG_LIBDIR="/usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
+        export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
+        export x86_64_CC="${CROSSCC_X64}"
+        export i386_CC="${CROSSCC_X32}"
+        export CROSSCC="${CROSSCC_X64}"
+    fi
 
-    WINE_64_BUILD_OPTIONS+=(--with-mingw="${x86_64_CC}")
-    WINE_32_BUILD_OPTIONS+=(--with-mingw="${i386_CC}")
+    WINE_64_BUILD_OPTIONS+=(--with-mingw="${CROSSCC_X64}")
+    if [ "${BUILD_ARCH}" != "aarch64" ]; then
+        WINE_32_BUILD_OPTIONS+=(--with-mingw="${i386_CC}")
+    fi
 
     if [ -f "/usr/local/lib/libunwind.a" ] && [ -f "/usr/local/lib/liblzma.a" ]; then
         export UNWIND_CFLAGS=""
@@ -217,8 +226,8 @@ build_wine() {
 
     unset UNWIND_CFLAGS UNWIND_LIBS
 
-    # Build 32-bit if not WoW64
-    if [ "${USE_WOW64}" != "true" ]; then
+    # Build 32-bit if not WoW64 and not ARM64
+    if [ "${BUILD_ARCH}" != "aarch64" ] && [ "${USE_WOW64}" != "true" ]; then
         export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
         export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
         export CROSSCC="${CROSSCC_X32}"
@@ -257,8 +266,8 @@ package_wine() {
         "${INSTALL_TYPE}"
     )
 
-    # Install 32-bit if not WoW64
-    if [ "${USE_WOW64}" != "true" ]; then
+    # Install 32-bit if not WoW64 and not ARM64
+    if [ "${BUILD_ARCH}" != "aarch64" ] && [ "${USE_WOW64}" != "true" ]; then
         cd "${BUILD_DIR}/build32"
         make -j$(($(nproc) + 1)) "${INSTALLCMD[@]}"
     fi
@@ -301,7 +310,11 @@ package_wine() {
         cd "${BUILD_DIR}"
     fi
 
-    local ARCHIVE_NAME="${BUILD_NAME}${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz"
+    if [ "${BUILD_ARCH}" = "aarch64" ]; then
+        local ARCHIVE_NAME="${BUILD_NAME}${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-aarch64.tar.xz"
+    else
+        local ARCHIVE_NAME="${BUILD_NAME}${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz"
+    fi
 
     # Setting version to build name, too
     if [ "${BUILD_NAME}" != "wine-osu" ]; then
@@ -359,21 +372,34 @@ build_setup() {
         WINE_BUILD_OPTIONS+=(--enable-build-id)
     fi
 
-    WINE_64_BUILD_OPTIONS=(
-        --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
-    )
-
-    # Configure WoW64 build options
-    if [ "${USE_WOW64}" = "true" ]; then
-        WINE_64_BUILD_OPTIONS+=(--enable-archs="x86_64,i386")
+    if [ "${BUILD_ARCH}" = "aarch64" ]; then
+        # ARM64 build configuration
+        WINE_64_BUILD_OPTIONS=(
+            --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
+            --enable-archs="aarch64"
+        )
+        
+        # No 32-bit builds for ARM64
+        USE_WOW64="true"
+        WINE_32_BUILD_OPTIONS=()
     else
-        WINE_64_BUILD_OPTIONS+=(--enable-win64)
-    fi
+        # x86_64 build configuration
+        WINE_64_BUILD_OPTIONS=(
+            --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
+        )
 
-    WINE_32_BUILD_OPTIONS=(
-        --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
-        --with-wine64="${BUILD_DIR}/build64"
-    )
+        # Configure WoW64 build options
+        if [ "${USE_WOW64}" = "true" ]; then
+            WINE_64_BUILD_OPTIONS+=(--enable-archs="x86_64,i386")
+        else
+            WINE_64_BUILD_OPTIONS+=(--enable-win64)
+        fi
+
+        WINE_32_BUILD_OPTIONS=(
+            --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
+            --with-wine64="${BUILD_DIR}/build64"
+        )
+    fi
 }
 
 ## ------------------------------------------------------------
@@ -383,69 +409,127 @@ build_setup() {
 compiler_setup() {
     export PKG_CONFIG="pkg-config"
 
-    # Compiler flags
-    if [ "$USE_LLVM_MINGW" = "true" ] && [ "$DEBUG" != "true" ]; then # llvm-mingw is a bit broken for debug
-        # LLVM-MinGW configuration
-        LLVM_MINGW_PATH="/usr/local/llvm-mingw"
-        export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
+    # Detect build architecture
+    BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
+    Info "Building for architecture: ${BUILD_ARCH}"
 
-        export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
-        export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+    if [ "${BUILD_ARCH}" = "aarch64" ]; then
+        # ARM64 native compilation
+        Info "Setting up ARM64 build environment..."
+        
+        export LIBRARY_PATH="/usr/lib:/usr/lib/aarch64-linux-gnu:/usr/local/lib:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="/usr/lib:/usr/lib/aarch64-linux-gnu:/usr/local/lib:${LD_LIBRARY_PATH:-}"
 
         # Compiler settings
         export CC="ccache gcc"
         export CXX="ccache g++"
-        export CROSSCC="ccache x86_64-w64-mingw32-clang"
-        export CROSSCC_X32="ccache i686-w64-mingw32-clang"
-        export CROSSCXX_X32="ccache i686-w64-mingw32-clang++"
-        export CROSSCC_X64="ccache x86_64-w64-mingw32-clang"
-        export CROSSCXX_X64="ccache x86_64-w64-mingw32-clang++"
-    else # gcc-mingw breaks tosu ingame overlay unless -O0 is used...
-        if [ -n "$(command -v i686-w64-mingw32-clang)" ]; then
-            PATH="${PATH//"$(dirname "$(command -v i686-w64-mingw32-clang)")":/}"
-        fi
+        export CROSSCC="ccache aarch64-w64-mingw32-gcc"
+        export CROSSCC_X64="ccache aarch64-w64-mingw32-gcc"
+        export CROSSCXX_X64="ccache aarch64-w64-mingw32-g++"
+        
+        # No 32-bit cross compiler for ARM64
+        export CROSSCC_X32=""
+        export CROSSCXX_X32=""
 
-        GCC_MINGW_PATH="/usr/local/gcc-mingw"
-        export PATH="${GCC_MINGW_PATH}/bin:${PATH}"
+        # ARM64 compiler flags
+        if [ "$WINE_OSU" = "true" ]; then
+            if [ "$DEBUG" != "true" ]; then
+                _common_cflags="-march=armv8.2-a -mtune=cortex-x3 -pipe -O2 -fno-strict-aliasing -fwrapv \
+                                -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+            else
+                _common_cflags="-march=armv8.2-a -mtune=cortex-x3 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv \
+                                -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
+                                -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+            fi
+        
+            _native_common_cflags="-static-libgcc"
 
-        export LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
-        export LD_LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
-
-        export CC="ccache gcc"
-        export CXX="ccache g++"
-        export CROSSCC="ccache x86_64-w64-mingw32-gcc"
-        export CROSSCC_X32="ccache i686-w64-mingw32-gcc"
-        export CROSSCXX_X32="ccache i686-w64-mingw32-g++"
-        export CROSSCC_X64="ccache x86_64-w64-mingw32-gcc"
-        export CROSSCXX_X64="ccache x86_64-w64-mingw32-g++"
-    fi
-
-    # wine-osu-safe compiler flags
-    if [ "$WINE_OSU" = "true" ]; then
-        if [ "$DEBUG" != "true" ]; then
-            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse \
-                            -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
-            [ "$USE_LLVM_MINGW" = "true" ] && _common_cflags="${_common_cflags} -ffunction-sections -fdata-sections -Wl,--gc-sections"
+            export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
+            _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
+            _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
+            _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
+            _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
         else
-            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
-                            -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
-                            -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+            # Generic ARM64 builds
+            _GCC_FLAGS="-march=armv8-a -O2 -ftree-vectorize -static-libgcc \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+            _LD_FLAGS="-Wl,-O1,--sort-common,--as-needed"
+            _CROSS_FLAGS="$_GCC_FLAGS"
+            _CROSS_LD_FLAGS="$_LD_FLAGS"
         fi
-    
-        _native_common_cflags="-static-libgcc"
 
-        export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-        _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
-        _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
-        _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
+        export aarch64_CC="${CROSSCC_X64}"
     else
-        # Generic builds, generic flags:
-        _GCC_FLAGS="-march=x86-64 -msse3 -mfpmath=sse -O2 -ftree-vectorize -static-libgcc \
-                    -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-        _LD_FLAGS="-Wl,-O1,--sort-common,--as-needed"
-        _CROSS_FLAGS="$_GCC_FLAGS"
-        _CROSS_LD_FLAGS="$_LD_FLAGS"
+        # x86_64 compilation (existing logic)
+        # Compiler flags
+        if [ "$USE_LLVM_MINGW" = "true" ] && [ "$DEBUG" != "true" ]; then # llvm-mingw is a bit broken for debug
+            # LLVM-MinGW configuration
+            LLVM_MINGW_PATH="/usr/local/llvm-mingw"
+            export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
+
+            export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
+            export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+
+            # Compiler settings
+            export CC="ccache gcc"
+            export CXX="ccache g++"
+            export CROSSCC="ccache x86_64-w64-mingw32-clang"
+            export CROSSCC_X32="ccache i686-w64-mingw32-clang"
+            export CROSSCXX_X32="ccache i686-w64-mingw32-clang++"
+            export CROSSCC_X64="ccache x86_64-w64-mingw32-clang"
+            export CROSSCXX_X64="ccache x86_64-w64-mingw32-clang++"
+        else # gcc-mingw breaks tosu ingame overlay unless -O0 is used...
+            if [ -n "$(command -v i686-w64-mingw32-clang)" ]; then
+                PATH="${PATH//"$(dirname "$(command -v i686-w64-mingw32-clang)")":/}"
+            fi
+
+            GCC_MINGW_PATH="/usr/local/gcc-mingw"
+            export PATH="${GCC_MINGW_PATH}/bin:${PATH}"
+
+            export LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
+            export LD_LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+
+            export CC="ccache gcc"
+            export CXX="ccache g++"
+            export CROSSCC="ccache x86_64-w64-mingw32-gcc"
+            export CROSSCC_X32="ccache i686-w64-mingw32-gcc"
+            export CROSSCXX_X32="ccache i686-w64-mingw32-g++"
+            export CROSSCC_X64="ccache x86_64-w64-mingw32-gcc"
+            export CROSSCXX_X64="ccache x86_64-w64-mingw32-g++"
+        fi
+
+        # wine-osu-safe compiler flags
+        if [ "$WINE_OSU" = "true" ]; then
+            if [ "$DEBUG" != "true" ]; then
+                _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse \
+                                -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+                [ "$USE_LLVM_MINGW" = "true" ] && _common_cflags="${_common_cflags} -ffunction-sections -fdata-sections -Wl,--gc-sections"
+            else
+                _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv -mfpmath=sse \
+                                -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
+                                -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+            fi
+        
+            _native_common_cflags="-static-libgcc"
+
+            export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
+            _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
+            _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
+            _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
+            _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
+        else
+            # Generic builds, generic flags:
+            _GCC_FLAGS="-march=x86-64 -msse3 -mfpmath=sse -O2 -ftree-vectorize -static-libgcc \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
+            _LD_FLAGS="-Wl,-O1,--sort-common,--as-needed"
+            _CROSS_FLAGS="$_GCC_FLAGS"
+            _CROSS_LD_FLAGS="$_LD_FLAGS"
+        fi
+
+        export i386_CC="${CROSSCC_X32}"
+        export x86_64_CC="${CROSSCC_X64}"
+        export i386_CFLAGS="${CROSSCFLAGS}"
+        export x86_64_CFLAGS="${CROSSCFLAGS}"
     fi
 
     # Compiler and linker flags
@@ -456,11 +540,6 @@ compiler_setup() {
     export CROSSCFLAGS="${_CROSS_FLAGS}"
     export CROSSCXXFLAGS="${_CROSS_FLAGS}"
     export CROSSLDFLAGS="${_CROSS_LD_FLAGS}"
-
-    export i386_CC="${CROSSCC_X32}"
-    export x86_64_CC="${CROSSCC_X64}"
-    export i386_CFLAGS="${CROSSCFLAGS}"
-    export x86_64_CFLAGS="${CROSSCFLAGS}"
 }
 
 ## ------------------------------------------------------------
