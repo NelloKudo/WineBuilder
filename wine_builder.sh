@@ -392,7 +392,6 @@ build_setup() {
 
 compiler_setup() {
     export PKG_CONFIG="pkg-config"
-
     Info "Setting up compiler for architecture: ${BUILD_ARCH}"
 
     if [ "${BUILD_ARCH}" = "aarch64" ]; then
@@ -402,7 +401,7 @@ compiler_setup() {
         export LIBRARY_PATH="/usr/lib:/usr/lib/aarch64-linux-gnu:/usr/local/lib:${LIBRARY_PATH:-}"
         export LD_LIBRARY_PATH="/usr/lib:/usr/lib/aarch64-linux-gnu:/usr/local/lib:${LD_LIBRARY_PATH:-}"
 
-        # Compiler settings (gcc/g++ are actually clang in Proton SDK)
+        # Compiler settings
         export CC="ccache gcc"
         export CXX="ccache g++"
         export CROSSCC="ccache aarch64-w64-mingw32-gcc"
@@ -413,14 +412,15 @@ compiler_setup() {
         export CROSSCC_X32=""
         export CROSSCXX_X32=""
 
-        # ARM64 compiler flags matching Proton
-        _common_cflags="-march=armv8.2-a -mtune=cortex-x3 -O2 -fwrapv -fno-strict-aliasing -ffunction-sections -fdata-sections"
+        # ARM64 compiler flags
+        _common_cflags="-march=armv8.2-a -mtune=cortex-x3 -pipe -O2 -fno-strict-aliasing -fwrapv \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
         _native_common_cflags="-static-libgcc"
 
-        export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64"
+        export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
         _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
         _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed -latomic"
+        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
         _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
 
         export aarch64_CC="${CROSSCC_X64}"
