@@ -7,7 +7,7 @@ ENV FFMPEG_VERSION="7.1.1" \
     LIBXML2_VERSION="2.13.9" \
     GSTREAMER_VERSION="1.26.5" \
     XZ_VERSION="5.6.4" \
-    LIBUNWIND_VERSION="1.8.1" \
+    LIBUNWIND_VERSION="1.8.3" \
     LIBGLVND_VERSION="1.7.0" \
     MESON_VERSION="1.9.1" \
     NINJA_VERSION="1.13.0" \
@@ -30,6 +30,18 @@ RUN wget -O rustup-init.sh https://raw.githubusercontent.com/rust-lang/rustup/${
     ln -sf "$HOME/.cargo/bin/cargo" /usr/local/bin/cargo && \
     ln -sf "$HOME/.cargo/bin/rustc" /usr/local/bin/rustc && \
     ln -sf "$HOME/.cargo/bin/rustup" /usr/local/bin/rustup
+
+RUN wget -O libunwind.tar.gz https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSION}/libunwind-${LIBUNWIND_VERSION}.tar.gz && \
+    tar -xf libunwind.tar.gz && \
+    cd libunwind-${LIBUNWIND_VERSION} && \
+    mkdir build_static && \
+    cd build_static && \
+    CC=clang CXX=clang++ ../configure --enable-static --disable-shared --prefix=/usr/local \
+        --disable-minidebuginfo \
+        --disable-documentation \
+        --disable-tests && \
+    make -j$(nproc) && \
+    make install
 
 RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-${LIBXKBCOMMON_VERSION}.tar.gz && \
     tar -xf libxkbcommon.tar.gz && \
@@ -119,18 +131,6 @@ RUN wget -O xz.tar.gz https://github.com/tukaani-project/xz/releases/download/v$
     mkdir build_static && \
     cd build_static && \
     CC=clang CXX=clang++ ../configure --enable-static --disable-shared --prefix=/usr/local && \
-    make -j$(nproc) && \
-    make install
-
-RUN wget -O libunwind.tar.gz https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSION}/libunwind-${LIBUNWIND_VERSION}.tar.gz && \
-    tar -xf libunwind.tar.gz && \
-    cd libunwind-${LIBUNWIND_VERSION} && \
-    mkdir build_static && \
-    cd build_static && \
-    CC=clang CXX=clang++ ../configure --enable-static --disable-shared --prefix=/usr/local \
-        --disable-minidebuginfo \
-        --disable-documentation \
-        --disable-tests && \
     make -j$(nproc) && \
     make install
 
