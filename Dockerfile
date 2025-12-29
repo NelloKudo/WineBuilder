@@ -37,7 +37,7 @@ RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archiv
     echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'aarch64'\ncpu = 'aarch64'\nendian = 'little'" > /opt/build-conf.txt && \
     export PKG_CONFIG_LIBDIR="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
-    CC=clang CXX=clang++ CFLAGS="-static-libgcc" CXXFLAGS="-static-libgcc -static-libstdc++" LDFLAGS="-static-libgcc -static-libstdc++" meson setup --prefer-static \
+    CC=clang CXX=clang++ CFLAGS="-static-libgcc -DHAVE_STRNDUP=1" CXXFLAGS="-static-libgcc -static-libstdc++ -DHAVE_STRNDUP=1" LDFLAGS="-static-libgcc -static-libstdc++" meson setup --prefer-static \
         --prefix=/usr/local --libdir=/usr/local/lib \
         --native-file /opt/build-conf.txt --buildtype "release" \
         build -Denable-docs=false -Ddefault_library=static -Denable-tools=false \
