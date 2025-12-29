@@ -420,7 +420,7 @@ compiler_setup() {
         export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64"
         _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
         _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
+        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed -latomic"
         _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
 
         export aarch64_CC="${CROSSCC_X64}"
