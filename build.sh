@@ -20,7 +20,7 @@ docker buildx build --progress=plain -t wine-builder . || { echo "docker build f
 
 ## Allow overriding variables in wine_builder.sh
 vars=(WINE_OSU USE_STAGING USE_TKG BUILD_NAME \
-      WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER)
+      WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER BUILD_ARCH)
 
 WB_ENV_ARGS=()
 for var in "${vars[@]}"; do

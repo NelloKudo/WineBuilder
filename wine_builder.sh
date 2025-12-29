@@ -409,9 +409,8 @@ build_setup() {
 compiler_setup() {
     export PKG_CONFIG="pkg-config"
 
-    # Detect build architecture
-    BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
-    Info "Building for architecture: ${BUILD_ARCH}"
+    # BUILD_ARCH is already set in main()
+    Info "Setting up compiler for architecture: ${BUILD_ARCH}"
 
     if [ "${BUILD_ARCH}" = "aarch64" ]; then
         # ARM64 native compilation
@@ -592,6 +591,10 @@ patch_setup() {
 
 main() {
     cd "${ORIGPATH}"
+
+    # Detect build architecture FIRST
+    BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
+    Info "Building for architecture: ${BUILD_ARCH}"
 
     # Base paths
     WINE_ROOT="/wine"
