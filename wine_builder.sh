@@ -352,8 +352,8 @@ build_setup() {
         --disable-winemenubuilder
         --disable-win16
         --with-x
-        --with-gstreamer
-        --with-ffmpeg
+        --without-gstreamer
+        --without-ffmpeg
         --with-wayland
         --without-oss
         --without-coreaudio

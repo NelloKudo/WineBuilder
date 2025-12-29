@@ -59,47 +59,47 @@ RUN wget -O libxml2.tar.gz https://github.com/GNOME/libxml2/archive/refs/tags/v$
     make -j$(nproc) && \
     make install
 
-RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs/tags/${GSTREAMER_VERSION}.tar.gz && \
-    tar -xf gstreamer.tar.gz && \
-    cd gstreamer-${GSTREAMER_VERSION} && \
-    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'aarch64'\ncpu = 'aarch64'\nendian = 'little'" > /opt/build-conf.txt && \
-    export PKG_CONFIG_LIBDIR="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" && \
-    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
-    CC=clang CXX=clang++ meson setup build \
-        --prefix=/usr/local \
-        --libdir=/usr/local/lib \
-        --native-file /opt/build-conf.txt \
-        -Dintrospection=disabled -Dgobject-cast-checks=disabled -Dglib-asserts=disabled -Dglib-checks=disabled \
-        -Dnls=disabled -Dexamples=disabled -Dtests=disabled -Ddoc=disabled \
-        -Dbenchmarks=disabled -Dtools=disabled && \
-    ninja -C build && \
-    ninja -C build install
+# RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs/tags/${GSTREAMER_VERSION}.tar.gz && \
+#     tar -xf gstreamer.tar.gz && \
+#     cd gstreamer-${GSTREAMER_VERSION} && \
+#     echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'aarch64'\ncpu = 'aarch64'\nendian = 'little'" > /opt/build-conf.txt && \
+#     export PKG_CONFIG_LIBDIR="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" && \
+#     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
+#     CC=clang CXX=clang++ meson setup build \
+#         --prefix=/usr/local \
+#         --libdir=/usr/local/lib \
+#         --native-file /opt/build-conf.txt \
+#         -Dintrospection=disabled -Dgobject-cast-checks=disabled -Dglib-asserts=disabled -Dglib-checks=disabled \
+#         -Dnls=disabled -Dexamples=disabled -Dtests=disabled -Ddoc=disabled \
+#         -Dbenchmarks=disabled -Dtools=disabled && \
+#     ninja -C build && \
+#     ninja -C build install
 
-RUN wget -O ffmpeg.tar.xz https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz && \
-    tar -xf ffmpeg.tar.xz && \
-    cd ffmpeg-${FFMPEG_VERSION} && \
-    CC=clang CXX=clang++ CFLAGS="-Os -static-libgcc" \
-    LDFLAGS="-Os -static-libgcc" \
-    ./configure \
-        --prefix=/usr/local \
-        --enable-shared \
-        --enable-static \
-        --disable-doc \
-        --disable-programs \
-        --disable-encoders \
-        --disable-muxers \
-        --disable-filters \
-        --enable-gpl \
-        --enable-version3 \
-        --disable-debug \
-        --enable-nonfree \
-        --disable-hwaccels \
-        --arch=aarch64 \
-        --target-os=linux && \
-    make -j$(nproc) && \
-    make install && \
-    cd .. && \
-    rm -rf ffmpeg-${FFMPEG_VERSION}
+# RUN wget -O ffmpeg.tar.xz https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz && \
+#     tar -xf ffmpeg.tar.xz && \
+#     cd ffmpeg-${FFMPEG_VERSION} && \
+#     CC=clang CXX=clang++ CFLAGS="-Os -static-libgcc" \
+#     LDFLAGS="-Os -static-libgcc" \
+#     ./configure \
+#         --prefix=/usr/local \
+#         --enable-shared \
+#         --enable-static \
+#         --disable-doc \
+#         --disable-programs \
+#         --disable-encoders \
+#         --disable-muxers \
+#         --disable-filters \
+#         --enable-gpl \
+#         --enable-version3 \
+#         --disable-debug \
+#         --enable-nonfree \
+#         --disable-hwaccels \
+#         --arch=aarch64 \
+#         --target-os=linux && \
+#     make -j$(nproc) && \
+#     make install && \
+#     cd .. && \
+#     rm -rf ffmpeg-${FFMPEG_VERSION}
 
 RUN wget -O libglvnd.tar.gz https://github.com/NVIDIA/libglvnd/archive/refs/tags/v${LIBGLVND_VERSION}.tar.gz && \
     tar -xf libglvnd.tar.gz && \
