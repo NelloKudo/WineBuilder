@@ -211,15 +211,6 @@ build_wine() {
         export UNWIND_LIBS="-L/usr/local/lib/ -static-libgcc -l:libunwind.a -l:liblzma.a"
     fi
 
-    # Allow Wine-Wayland to work in Steam Linux Runtime
-    XKBCOMMON_CFLAGS="$(pkg-config --static --cflags xkbcommon)"
-    XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's| -l| -l:lib|').a"
-    export XKBCOMMON_CFLAGS XKBCOMMON_LIBS
-    # Fixes Wine-Wayland not working due to libxml2 issues on some systems
-    LIBXML2_CFLAGS="$(pkg-config --static --cflags libxml-2.0)"
-    LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's| -l| -l:lib|g').a"
-    export LIBXML2_CFLAGS LIBXML2_LIBS
-
     # Configure and build 64-bit
     "${BUILD_DIR}/wine/configure" "${WINE_BUILD_OPTIONS[@]}" "${WINE_64_BUILD_OPTIONS[@]}"
     make -j$(($(nproc) + 1))
@@ -231,15 +222,8 @@ build_wine() {
         export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
         export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
         export CROSSCC="${CROSSCC_X32}"
-        XKBCOMMON_CFLAGS="$(pkg-config --static --cflags xkbcommon)"
-        XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's| -l| -l:lib|').a"
-        export XKBCOMMON_CFLAGS XKBCOMMON_LIBS
-        LIBXML2_CFLAGS="$(pkg-config --static --cflags libxml-2.0)"
-        LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's| -l| -l:lib|g').a"
-        export LIBXML2_CFLAGS LIBXML2_LIBS
 
         # export I386_LIBS="-latomic" required for older fsync
-
         cd "${BUILD_DIR}"
         rm -rf build32
         mkdir build32
@@ -352,9 +336,9 @@ build_setup() {
         --disable-winemenubuilder
         --disable-win16
         --with-x
-        --without-gstreamer
-        --without-ffmpeg
-        --without-wayland
+        --with-gstreamer
+        --with-ffmpeg
+        --with-wayland
         --without-oss
         --without-coreaudio
         --without-cups
@@ -409,7 +393,6 @@ build_setup() {
 compiler_setup() {
     export PKG_CONFIG="pkg-config"
 
-    # BUILD_ARCH is already set in main()
     Info "Setting up compiler for architecture: ${BUILD_ARCH}"
 
     if [ "${BUILD_ARCH}" = "aarch64" ]; then
@@ -419,7 +402,7 @@ compiler_setup() {
         export LIBRARY_PATH="/usr/lib:/usr/lib/aarch64-linux-gnu:/usr/local/lib:${LIBRARY_PATH:-}"
         export LD_LIBRARY_PATH="/usr/lib:/usr/lib/aarch64-linux-gnu:/usr/local/lib:${LD_LIBRARY_PATH:-}"
 
-        # Compiler settings
+        # Compiler settings (gcc/g++ are actually clang in Proton SDK)
         export CC="ccache gcc"
         export CXX="ccache g++"
         export CROSSCC="ccache aarch64-w64-mingw32-gcc"
@@ -430,32 +413,15 @@ compiler_setup() {
         export CROSSCC_X32=""
         export CROSSCXX_X32=""
 
-        # ARM64 compiler flags
-        if [ "$WINE_OSU" = "true" ]; then
-            if [ "$DEBUG" != "true" ]; then
-                _common_cflags="-march=armv8.2-a -mtune=cortex-x3 -pipe -O2 -fno-strict-aliasing -fwrapv \
-                                -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
-            else
-                _common_cflags="-march=armv8.2-a -mtune=cortex-x3 -pipe -Og -ggdb -gdwarf-4 -fvar-tracking-assignments -fno-strict-aliasing -fwrapv \
-                                -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
-                                -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-            fi
-        
-            _native_common_cflags="-static-libgcc"
+        # ARM64 compiler flags matching Proton
+        _common_cflags="-march=armv8.2-a -mtune=cortex-x3 -O2 -fwrapv -fno-strict-aliasing -ffunction-sections -fdata-sections"
+        _native_common_cflags="-static-libgcc"
 
-            export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
-            _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
-            _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-            _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
-            _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
-        else
-            # Generic ARM64 builds
-            _GCC_FLAGS="-march=armv8-a -O2 -ftree-vectorize -static-libgcc \
-                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-            _LD_FLAGS="-Wl,-O1,--sort-common,--as-needed"
-            _CROSS_FLAGS="$_GCC_FLAGS"
-            _CROSS_LD_FLAGS="$_LD_FLAGS"
-        fi
+        export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64"
+        _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
+        _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
+        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
+        _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
 
         export aarch64_CC="${CROSSCC_X64}"
     else
