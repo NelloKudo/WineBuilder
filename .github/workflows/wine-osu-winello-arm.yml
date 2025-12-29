@@ -2,6 +2,8 @@ name: wine-osu-winello-arm
 on:
   workflow_dispatch:
   push:
+    branches:
+      - 'arm64'
     tags:
       - 'wine-osu*'
 jobs:

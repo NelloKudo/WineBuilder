@@ -34,10 +34,10 @@ RUN wget -O rustup-init.sh https://raw.githubusercontent.com/rust-lang/rustup/${
 RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-${LIBXKBCOMMON_VERSION}.tar.gz && \
     tar -xf libxkbcommon.tar.gz && \
     cd libxkbcommon-xkbcommon-${LIBXKBCOMMON_VERSION} && \
-    echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'aarch64'\ncpu = 'aarch64'\nendian = 'little'" > /opt/build-conf.txt && \
+    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'aarch64'\ncpu = 'aarch64'\nendian = 'little'" > /opt/build-conf.txt && \
     export PKG_CONFIG_LIBDIR="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
-    CFLAGS="-static-libgcc" CXXFLAGS="-static-libgcc -static-libstdc++" LDFLAGS="-static-libgcc -static-libstdc++" meson setup --prefer-static \
+    CC=clang CXX=clang++ CFLAGS="-static-libgcc" CXXFLAGS="-static-libgcc -static-libstdc++" LDFLAGS="-static-libgcc -static-libstdc++" meson setup --prefer-static \
         --prefix=/usr/local --libdir=/usr/local/lib \
         --native-file /opt/build-conf.txt --buildtype "release" \
         build -Denable-docs=false -Ddefault_library=static -Denable-tools=false \
@@ -51,7 +51,7 @@ RUN wget -O libxml2.tar.gz https://github.com/GNOME/libxml2/archive/refs/tags/v$
     cd libxml2-${LIBXML2_VERSION} && \
     export PKG_CONFIG_LIBDIR="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
-    CFLAGS="-fPIC -static-libgcc" CXXFLAGS="-fPIC -static-libgcc -static-libstdc++" LDFLAGS="-static-libgcc -static-libstdc++" \
+    CC=clang CXX=clang++ CFLAGS="-fPIC -static-libgcc" CXXFLAGS="-fPIC -static-libgcc -static-libstdc++" LDFLAGS="-static-libgcc -static-libstdc++" \
     ./autogen.sh --prefix=/usr/local --libdir=/usr/local/lib \
     --enable-static --disable-shared \
     --without-python --without-lzma --without-zlib \
@@ -62,10 +62,10 @@ RUN wget -O libxml2.tar.gz https://github.com/GNOME/libxml2/archive/refs/tags/v$
 RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs/tags/${GSTREAMER_VERSION}.tar.gz && \
     tar -xf gstreamer.tar.gz && \
     cd gstreamer-${GSTREAMER_VERSION} && \
-    echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'aarch64'\ncpu = 'aarch64'\nendian = 'little'" > /opt/build-conf.txt && \
+    echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'aarch64'\ncpu = 'aarch64'\nendian = 'little'" > /opt/build-conf.txt && \
     export PKG_CONFIG_LIBDIR="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
-    meson setup build \
+    CC=clang CXX=clang++ meson setup build \
         --prefix=/usr/local \
         --libdir=/usr/local/lib \
         --native-file /opt/build-conf.txt \
@@ -78,7 +78,7 @@ RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs
 RUN wget -O ffmpeg.tar.xz https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz && \
     tar -xf ffmpeg.tar.xz && \
     cd ffmpeg-${FFMPEG_VERSION} && \
-    CFLAGS="-Os -static-libgcc" \
+    CC=clang CXX=clang++ CFLAGS="-Os -static-libgcc" \
     LDFLAGS="-Os -static-libgcc" \
     ./configure \
         --prefix=/usr/local \
@@ -118,7 +118,7 @@ RUN wget -O xz.tar.gz https://github.com/tukaani-project/xz/releases/download/v$
     cd xz-${XZ_VERSION} && \
     mkdir build_static && \
     cd build_static && \
-    ../configure --enable-static --disable-shared --prefix=/usr/local && \
+    CC=clang CXX=clang++ ../configure --enable-static --disable-shared --prefix=/usr/local && \
     make -j$(nproc) && \
     make install
 
@@ -127,7 +127,7 @@ RUN wget -O libunwind.tar.gz https://github.com/libunwind/libunwind/releases/dow
     cd libunwind-${LIBUNWIND_VERSION} && \
     mkdir build_static && \
     cd build_static && \
-    ../configure --enable-static --disable-shared --prefix=/usr/local \
+    CC=clang CXX=clang++ ../configure --enable-static --disable-shared --prefix=/usr/local \
         --disable-minidebuginfo \
         --disable-documentation \
         --disable-tests && \
