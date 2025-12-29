@@ -31,18 +31,6 @@ RUN wget -O rustup-init.sh https://raw.githubusercontent.com/rust-lang/rustup/${
     ln -sf "$HOME/.cargo/bin/rustc" /usr/local/bin/rustc && \
     ln -sf "$HOME/.cargo/bin/rustup" /usr/local/bin/rustup
 
-RUN wget -O libunwind.tar.gz https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSION}/libunwind-${LIBUNWIND_VERSION}.tar.gz && \
-    tar -xf libunwind.tar.gz && \
-    cd libunwind-${LIBUNWIND_VERSION} && \
-    mkdir build_static && \
-    cd build_static && \
-    CC=clang CXX=clang++ ../configure --enable-static --disable-shared --prefix=/usr/local \
-        --disable-minidebuginfo \
-        --disable-documentation \
-        --disable-tests && \
-    make -j$(nproc) && \
-    make install
-
 RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-${LIBXKBCOMMON_VERSION}.tar.gz && \
     tar -xf libxkbcommon.tar.gz && \
     cd libxkbcommon-xkbcommon-${LIBXKBCOMMON_VERSION} && \
@@ -131,6 +119,18 @@ RUN wget -O xz.tar.gz https://github.com/tukaani-project/xz/releases/download/v$
     mkdir build_static && \
     cd build_static && \
     CC=clang CXX=clang++ ../configure --enable-static --disable-shared --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install
+
+RUN wget -O libunwind.tar.gz https://github.com/libunwind/libunwind/releases/download/v${LIBUNWIND_VERSION}/libunwind-${LIBUNWIND_VERSION}.tar.gz && \
+    tar -xf libunwind.tar.gz && \
+    cd libunwind-${LIBUNWIND_VERSION} && \
+    mkdir build_static && \
+    cd build_static && \
+    CC=clang CXX=clang++ ../configure --enable-static --disable-shared --prefix=/usr/local \
+        --disable-minidebuginfo \
+        --disable-documentation \
+        --disable-tests && \
     make -j$(nproc) && \
     make install
 
