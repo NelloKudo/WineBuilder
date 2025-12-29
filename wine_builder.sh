@@ -338,7 +338,7 @@ build_setup() {
         --with-x
         --with-gstreamer
         --with-ffmpeg
-        --with-wayland
+        --without-wayland
         --without-oss
         --without-coreaudio
         --without-cups
