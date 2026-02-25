@@ -210,6 +210,13 @@ build_wine() {
     LIBXML2_CFLAGS="$(pkg-config --static --cflags libxml-2.0)"
     LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's| -l| -l:lib|g').a"
     export LIBXML2_CFLAGS LIBXML2_LIBS
+    # Allow GStreamer AAC to work in Steam Linux Runtime
+    if [ "$WINE_OSU" = "true" ]; then
+        GSTREAMER_CFLAGS="$(pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0)"
+        GSTREAMER_LIBS="$(pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0) -Wl,-rpath='\$\$ORIGIN'"
+        export GSTREAMER_CFLAGS GSTREAMER_LIBS
+    fi
+    
 
     # Configure and build 64-bit
     "${BUILD_DIR}/wine/configure" "${WINE_BUILD_OPTIONS[@]}" "${WINE_64_BUILD_OPTIONS[@]}"
@@ -293,6 +300,14 @@ package_wine() {
 
     mv "${BUILD_OUT_TMP_DIR}" "${BUILD_NAME}"
 
+    # Bundle GStreamer to fix .m4a/.aac support in Steam Linux Runtime
+    if [ "$WINE_OSU" = "true" ]; then
+        Info "Bundling GStreamer libs for AAC support..."
+        cp -P /usr/local/x86_64/lib/x86_64-linux-gnu/libgst*.so* "${BUILD_NAME}/lib/wine/x86_64-unix/"
+        cp /usr/local/x86_64/lib/x86_64-linux-gnu/gstreamer-1.0/libgst*.so "${BUILD_DIR}/${BUILD_NAME}/lib/wine/x86_64-unix/"
+        cp /usr/lib/x86_64-linux-gnu/libfaad.so* "${BUILD_NAME}/lib/wine/x86_64-unix/" 2>/dev/null || true
+    fi
+
     if [ "${BUILD_FONTS}" = "true" ]; then
         # Launch fonts build script
         Info "Compiling and installing fonts from Proton..."
@@ -310,7 +325,7 @@ package_wine() {
     fi
 
     Info "Creating and compressing ${ARCHIVE_NAME}..."
-    tar -cJf \
+    XZ_OPT="-9 -T$(nproc)" tar -cJf \
         "${ARCHIVE_NAME}" \
         --xattrs --numeric-owner --owner=0 --group=0 "${BUILD_NAME}"
     mv "${ARCHIVE_NAME}" "${WINE_ROOT}"

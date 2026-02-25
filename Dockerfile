@@ -33,7 +33,7 @@ RUN wget -O llvm-mingw-${LLVM_MINGW_VERSION}.tar.xz \
 WORKDIR /build
 
 RUN apt-get -y update && \
-    apt-get -y install python3-pip && \
+    apt-get -y install python3-pip libfaad-dev libfaad-dev:i386 && \
     pip3 install --upgrade pip && \
     pip3 install --upgrade meson==${MESON_VERSION} ninja==${NINJA_VERSION}
 
@@ -114,13 +114,14 @@ RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs
     echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
     export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
+    LDFLAGS="-Wl,-rpath,\$ORIGIN" \
     meson setup build_x86_64 \
         --prefix=/usr/local/x86_64 \
         --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu \
         --native-file /opt/build64-conf.txt \
         -Dintrospection=disabled -Dgobject-cast-checks=disabled -Dglib-asserts=disabled -Dglib-checks=disabled \
-        -Dnls=disabled -Dexamples=disabled -Dtests=disabled -Ddoc=disabled \
-        -Dbenchmarks=disabled -Dtools=disabled && \
+        -Dnls=disabled -Dexamples=disabled -Dtests=disabled -Dgpl=enabled -Ddoc=disabled \
+        -Dbenchmarks=disabled -Dtools=disabled -Dbad=enabled -Dgst-plugins-bad:faad=enabled && \
     ninja -C build_x86_64 && \
     ninja -C build_x86_64 install && \
     rm -rf build_x86_64 && \
@@ -136,7 +137,7 @@ RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs
         --native-file /opt/build32-conf.txt \
         -Dintrospection=disabled -Dgobject-cast-checks=disabled -Dglib-asserts=disabled -Dglib-checks=disabled \
         -Dnls=disabled -Dexamples=disabled -Dtests=disabled -Ddoc=disabled \
-        -Dbad=disabled -Dbenchmarks=disabled -Dges=disabled -Dglib_debug=disabled \
+        -Dbad=enabled -Dgst-plugins-bad:openh264=disabled -Dgst-plugins-bad:faad=enabled -Dbenchmarks=disabled -Dges=disabled -Dglib_debug=disabled \
         -Dgpl=enabled -Dgst-examples=disabled -Dgst-plugins-base:gl-graphene=disabled -Dgst-plugins-base:libvisual=disabled \
         -Dgst-plugins-base:tremor=disabled -Dgst-plugins-good:amrnb=disabled -Dgst-plugins-good:amrwbdec=disabled -Dgst-plugins-good:lame=disabled \
         -Dgst-plugins-good:rpicamsrc=disabled -Dgstreamer:bash-completion=disabled -Dgstreamer:dbghelp=disabled -Dgstreamer:ptp-helper=disabled \
@@ -264,7 +265,7 @@ RUN wget -O /usr/include/linux/ntsync.h  \
 
 RUN apt-get -y update && \
     apt-get -y install gawk libkrb5-dev libkrb5-dev:i386 libpcap0.8 libpcap0.8-dev \
-        libpcap0.8:i386 libpcap0.8-dev:i386 && \
+        libpcap0.8:i386 libpcap0.8-dev:i386 libfaad-dev libfaad-dev:i386 && \
     apt-get clean && apt-get autoclean && \
     rm -rf /build/* /var/lib/apt/lists/*
 
