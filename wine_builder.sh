@@ -209,11 +209,11 @@ build_wine() {
     export LIBXML2_CFLAGS LIBXML2_LIBS
     # Allow GStreamer AAC to work in Steam Linux Runtime
     if [ "$WINE_OSU" = "true" ]; then
-        GSTREAMER_CFLAGS="$(pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0)"
-        GSTREAMER_LIBS="$(pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0) -Wl,-rpath='\$\$ORIGIN'"
+        GSTREAMER_CFLAGS="$(pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0)"
+        GSTREAMER_LIBS="$(pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0) -Wl,-rpath='\$\$ORIGIN'"
         export GSTREAMER_CFLAGS GSTREAMER_LIBS
     fi
-
+    
     # Configure and build 64-bit
     "${BUILD_DIR}/wine/configure" "${WINE_BUILD_OPTIONS[@]}" "${WINE_64_BUILD_OPTIONS[@]}"
     make -j$(($(nproc) + 1))
