@@ -79,7 +79,7 @@ _configuration() {
     # osu!-specific settings
     if [ "$WINE_OSU" == "true" ]; then
         BUILD_NAME="wine-osu"
-        RELEASE_VERSION="7"
+        RELEASE_VERSION="8"
         PATCHSET="remote:winello-v10.15-$RELEASE_VERSION"
         USE_TKG="false"
     fi
