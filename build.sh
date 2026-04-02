@@ -20,7 +20,7 @@ docker tag nellokudo/wine-builder:latest wine-builder:latest
 
 ## Allow overriding variables in wine_builder.sh
 vars=(WINE_OSU USE_STAGING USE_TKG BUILD_NAME \
-      WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER)
+      WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER NO_COMPRESS)
 
 WB_ENV_ARGS=()
 for var in "${vars[@]}"; do
@@ -47,4 +47,6 @@ Info "FIXME: fixing up ownership of build files..."
 sudo chown -R "$(id -u)":"$(id -g)" output/
 
 ## Copying finished builds in main directory..
-mv output/*.tar.* .
+if compgen -G "output/*.tar.*" > /dev/null; then
+    mv output/*.tar.* .
+fi

@@ -55,6 +55,9 @@ _configuration() {
     USE_LLVM_MINGW="${4:-false}"
     CRAP_AUDIO="${5:-false}"
 
+    # Debugging env. vars
+    NO_COMPRESS="${NO_COMPRESS:-false}"
+
     # Wine links
     WINE_URL="https://github.com/wine-mirror/wine.git"
     STAGING_URL="https://github.com/wine-staging/wine-staging.git"
@@ -324,11 +327,16 @@ package_wine() {
         BUILD_NAME="$BUILD_NAME-$WINE_VERSION"
     fi
 
-    Info "Creating and compressing ${ARCHIVE_NAME}..."
-    XZ_OPT="-9 -T$(nproc)" tar -cJf \
-        "${ARCHIVE_NAME}" \
-        --xattrs --numeric-owner --owner=0 --group=0 "${BUILD_NAME}"
-    mv "${ARCHIVE_NAME}" "${WINE_ROOT}"
+    if [ "${NO_COMPRESS}" = "true" ]; then
+        Info "Skipping compression, moving build directory to output..."
+        mv "${BUILD_NAME}" "${WINE_ROOT}/${BUILD_NAME}"
+    else
+        Info "Creating and compressing ${ARCHIVE_NAME}..."
+        XZ_OPT="-9 -T$(nproc)" tar -cJf \
+            "${ARCHIVE_NAME}" \
+            --xattrs --numeric-owner --owner=0 --group=0 "${BUILD_NAME}"
+        mv "${ARCHIVE_NAME}" "${WINE_ROOT}"
+    fi
 }
 
 ## ------------------------------------------------------------
