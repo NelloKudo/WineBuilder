@@ -112,9 +112,6 @@ _staging_patcher() {
             Info "WoW64 build: adding staging hotfix to remove the 'ntdll-Syscall_Emulation' patchset"
             STAGING_ARGS+=" -W ntdll-Syscall_Emulation"
         fi
-    else
-        # Also disabling problematic Staging patchset
-        STAGING_ARGS+=" -W winedevice-Default_Drivers" || Info "Problematic patchset not found, ignoring.."
     fi
 
     local staging_patcher
@@ -686,11 +683,8 @@ main() {
         tools/make_specfiles
     }
 
-    # Only ask for non-valve based builds
-    if [[ "$USE_CACHY" == "false" && "$USE_EM" == "false" && "$USE_VALVE" == "false" ]]; then
-        chmod +x tools/make_makefiles
-        tools/make_makefiles
-    fi
+    # chmod +x tools/make_makefiles
+    # tools/make_makefiles
 
     autoreconf -fiv
     # Build and package
