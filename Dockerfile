@@ -10,18 +10,19 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/lib/gcc-14/bin/gcc 90 \
 FROM main-deps AS manual-deps
 
 ENV FFMPEG_VERSION="7.1.1" \
-    LIBXKBCOMMON_VERSION="1.9.2" \
-    LIBXML2_VERSION="2.13.9" \
+    LIBXKBCOMMON_VERSION="1.13.1" \
+    LIBXML2_VERSION="2.15.2" \
     GSTREAMER_VERSION="1.26.5" \
     LLVM_MINGW_VERSION="20250402" \
-    XZ_VERSION="5.6.4" \
-    LIBUNWIND_VERSION="1.8.1" \
+    XZ_VERSION="5.8.3" \
+    LIBUNWIND_VERSION="1.8.3" \
     GCC_MINGW_VERSION="14.2.0-1" \
     LIBGLVND_VERSION="1.7.0" \
-    MESON_VERSION="1.9.1" \
+    MESON_VERSION="1.10.2" \
     NINJA_VERSION="1.13.0" \
-    RUSTUP_VERSION="1.28.2" \
-    RUST_VERSION="1.91.0" \
+    RUSTUP_VERSION="1.29.0" \
+    RUST_VERSION="1.94.1" \
+    WAYLAND_VERSION="1.25.0" \
     PATH="/usr/local/llvm-mingw/bin:$PATH"
 
 RUN wget -O llvm-mingw-${LLVM_MINGW_VERSION}.tar.xz \
@@ -33,7 +34,8 @@ RUN wget -O llvm-mingw-${LLVM_MINGW_VERSION}.tar.xz \
 WORKDIR /build
 
 RUN apt-get -y update && \
-    apt-get -y install python3-pip libfaad-dev libfaad-dev:i386 && \
+    apt-get -y install python3-pip libfaad-dev libfaad-dev:i386 \
+        libexpat1-dev libexpat1-dev:i386 libffi-dev libffi-dev:i386 && \
     pip3 install --upgrade pip && \
     pip3 install --upgrade meson==${MESON_VERSION} ninja==${NINJA_VERSION}
 
@@ -47,6 +49,35 @@ RUN wget -O rustup-init.sh https://raw.githubusercontent.com/rust-lang/rustup/${
     ln -sf "$HOME/.cargo/bin/rustc" /usr/local/bin/rustc && \
     ln -sf "$HOME/.cargo/bin/rustup" /usr/local/bin/rustup
 
+RUN wget -O wayland.tar.xz \
+    https://gitlab.freedesktop.org/wayland/wayland/-/releases/${WAYLAND_VERSION}/downloads/wayland-${WAYLAND_VERSION}.tar.xz && \
+    tar -xf wayland.tar.xz && \
+    cd wayland-${WAYLAND_VERSION} && \
+    # 64-bit
+    echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
+    export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
+    meson setup build_x86_64 \
+        --prefix=/usr/local/x86_64 --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu \
+        --native-file /opt/build64-conf.txt --buildtype release \
+        -Dtests=false -Ddocumentation=false -Ddtd_validation=false && \
+    meson install -C build_x86_64 && \
+    cp /usr/local/x86_64/bin/wayland-scanner /usr/bin/wayland-scanner && \
+    ln -sf /usr/bin/wayland-scanner /usr/local/bin/wayland-scanner && \
+    cp /usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig/wayland-scanner.pc /usr/share/pkgconfig/wayland-scanner.pc && \
+    cp /usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig/wayland-scanner.pc /usr/lib/x86_64-linux-gnu/pkgconfig/wayland-scanner.pc 2>/dev/null || true && \
+    rm -rf build_x86_64 && \
+    # 32-bit
+    printf '#!/bin/sh\nexec env PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig pkg-config "$@"\n' \
+        > /usr/local/bin/i386-pkg-config && chmod +x /usr/local/bin/i386-pkg-config && \
+    printf '[binaries]\nc = '"'"'gcc'"'"'\ncpp = '"'"'g++'"'"'\npkgconfig = '"'"'/usr/local/bin/i386-pkg-config'"'"'\nwayland-scanner = '"'"'/usr/bin/wayland-scanner'"'"'\n\n[properties]\nc_args = ['"'"'-m32'"'"']\ncpp_args = ['"'"'-m32'"'"']\nc_link_args = ['"'"'-m32'"'"']\ncpp_link_args = ['"'"'-m32'"'"']\n\n[host_machine]\nsystem = '"'"'linux'"'"'\ncpu_family = '"'"'x86'"'"'\ncpu = '"'"'i686'"'"'\nendian = '"'"'little'"'"'\n' > /opt/cross32-conf.txt && \
+    meson setup build_i386 \
+        --prefix=/usr/local/i386 --libdir=/usr/local/i386/lib/i386-linux-gnu \
+        --cross-file /opt/cross32-conf.txt --buildtype release \
+        -Dtests=false -Ddocumentation=false -Ddtd_validation=false -Dscanner=false && \
+    meson install -C build_i386 && \
+    rm -rf build_i386
+
 RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-${LIBXKBCOMMON_VERSION}.tar.gz && \
     tar -xf libxkbcommon.tar.gz && \
     cd libxkbcommon-xkbcommon-${LIBXKBCOMMON_VERSION} && \
@@ -54,7 +85,7 @@ RUN wget -O libxkbcommon.tar.gz https://github.com/xkbcommon/libxkbcommon/archiv
     export LD_LIBRARY_PATH="usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}" && \
     # 64-bit
     echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
-    export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_LIBDIR="/usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
     CFLAGS="-static-libgcc" CXXFLAGS="-static-libgcc -static-libstdc++" LDFLAGS="-static-libgcc -static-libstdc++" meson setup --prefer-static \
         --prefix=/usr/local/x86_64 --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu \
@@ -112,7 +143,7 @@ RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs
     export LD_LIBRARY_PATH="usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}" && \
     # 64-bit build
     echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
-    export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_LIBDIR="/usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
     LDFLAGS="-Wl,-rpath,\$ORIGIN" \
     meson setup build_x86_64 \
@@ -127,7 +158,7 @@ RUN wget -O gstreamer.tar.gz https://github.com/GStreamer/gstreamer/archive/refs
     rm -rf build_x86_64 && \
     # 32-bit build
     echo "[binaries]\nc = 'gcc'\ncpp = 'g++'\n\n[properties]\nc_args = ['-m32', '-msse2', '-mfpmath=sse']\ncpp_args = ['-m32', '-msse2', '-mfpmath=sse']\nc_link_args = ['-m32']\ncpp_link_args = ['-m32']\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'i686'\nendian = 'little'" > /opt/build32-conf.txt && \
-    export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
     CFLAGS="-m32 -msse2 -mfpmath=sse -fPIC -O2" \
     LDFLAGS="-m32" \
@@ -206,7 +237,7 @@ RUN wget -O libglvnd.tar.gz https://github.com/NVIDIA/libglvnd/archive/refs/tags
     export LD_LIBRARY_PATH="/usr/local/llvm-mingw/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}" && \
     # 64-bit
     echo "[binaries]\nc = 'clang'\ncpp = 'clang++'\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86_64'\ncpu = 'x86_64'\nendian = 'little'" > /opt/build64-conf.txt && \
-    export PKG_CONFIG_LIBDIR="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_LIBDIR="/usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
     LDFLAGS="-fuse-ld=lld" meson setup build_x86_64 -Dgles1=false \
         --prefix=/usr/local/x86_64 --libdir=/usr/local/x86_64/lib/x86_64-linux-gnu \
@@ -216,7 +247,7 @@ RUN wget -O libglvnd.tar.gz https://github.com/NVIDIA/libglvnd/archive/refs/tags
     rm -rf build_x86_64 && \
     # 32-bit
     echo "[binaries]\nc = ['clang','-m32']\ncpp = ['clang++','-m32']\nld = 'lld'\nar = 'llvm-ar'\nstrip = 'llvm-strip'\npkgconfig = 'pkg-config'\n\n[host_machine]\nsystem = 'linux'\ncpu_family = 'x86'\ncpu = 'x86'\nendian = 'little'" > /opt/build32-conf.txt && \
-    export PKG_CONFIG_LIBDIR="/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" && \
     export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}" && \
     CFLAGS="-m32" LDFLAGS="-m32 -fuse-ld=lld" meson setup build_i386 -Dheaders=false -Dgles1=false \
         --prefix=/usr/local/i386 --libdir=/usr/local/i386/lib/i386-linux-gnu \
