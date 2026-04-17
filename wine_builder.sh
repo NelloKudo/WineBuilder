@@ -106,14 +106,6 @@ _configuration() {
 _staging_patcher() {
     Info "Applying Wine-Staging patches..."
 
-    # Breaks seccomp (example: opening browser from clicking on links in wine)
-    if [ "${WINE_OSU}" = "true" ]; then
-        if [ "${USE_WOW64}" = "true" ]; then
-            Info "WoW64 build: adding staging hotfix to remove the 'ntdll-Syscall_Emulation' patchset"
-            STAGING_ARGS+=" -W ntdll-Syscall_Emulation"
-        fi
-    fi
-
     local staging_patcher
     if [ -f "wine-staging-${WINE_VERSION}/patches/patchinstall.sh" ]; then
         staging_patcher=("${BUILD_DIR}/wine-staging-${WINE_VERSION}/patches/patchinstall.sh"
