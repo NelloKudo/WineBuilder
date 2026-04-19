@@ -8,7 +8,9 @@ You can find prebuilt binaries on the [Releases page](https://github.com/NelloKu
 
 ## Builds description
 
-WineBuilder uses the latest Proton SDK (with a few changes) to build Wine inside a Docker container. This ensures great compatibility and feature completeness — including seamless usage within the **Steam Linux Runtime**. The `wine-builder` container is hosted [here](https://hub.docker.com/r/nellokudo/wine-builder), built from its apposite [GitHub CI](https://github.com/NelloKudo/WineBuilder/actions/workflows/dockerhub.yml).
+WineBuilder uses the latest Proton SDK (with a few changes) to build Wine inside a Docker container. This ensures great compatibility and feature completeness — including seamless usage within the **Steam Linux Runtime**. 
+
+The `wine-builder` container is hosted [here](https://hub.docker.com/r/nellokudo/wine-builder), built from its apposite [winebuilder-image repository](https://github.com/NelloKudo/winebuilder-image).
 
 By default, the script creates **osu!-specific builds**, with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), also used in [osu-winello](https://github.com/NelloKudo/osu-winello). 
 

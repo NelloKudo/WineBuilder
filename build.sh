@@ -11,9 +11,17 @@ Info "Welcome to WineBuilder!"
 ## Setting up Docker..
 mkdir -p {custompatches,ccache,output,protonfonts,sources}
 
+# Keep using steamrt3 for osu! for now, 
+# allow using steamrt4 for other builds (for e.g. working syscall emulation)
+if [[ "${WINE_OSU:-}" == "false" ]]; then
+    STEAMRT_TAG="steamrt4-190426"
+else
+    STEAMRT_TAG="steamrt3-190426"
+fi
+
 Info "Pulling Docker image..."
-docker pull nellokudo/wine-builder:latest || { echo "docker pull failed" && exit 1; }
-docker tag nellokudo/wine-builder:latest wine-builder:latest
+docker pull nellokudo/wine-builder:$STEAMRT_TAG || { echo "docker pull failed" && exit 1; }
+docker tag nellokudo/wine-builder:$STEAMRT_TAG wine-builder:latest
 
 # Or build the image locally from the Dockerfile
 # docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit; }
