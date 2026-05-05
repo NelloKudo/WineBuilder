@@ -14,9 +14,9 @@ mkdir -p {custompatches,ccache,output,protonfonts,sources}
 # Keep using steamrt3 for osu! for now, 
 # allow using steamrt4 for other builds (for e.g. working syscall emulation)
 if [[ "${WINE_OSU:-}" == "false" ]]; then
-    STEAMRT_TAG="steamrt4-190426"
+    STEAMRT_TAG="steamrt4-040526"
 else
-    STEAMRT_TAG="steamrt3-190426"
+    STEAMRT_TAG="steamrt3-040526"
 fi
 
 Info "Pulling Docker image..."

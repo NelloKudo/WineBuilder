@@ -194,14 +194,19 @@ build_wine() {
         export UNWIND_LIBS="-L/usr/local/lib/ -static-libgcc -l:libunwind.a -l:liblzma.a"
     fi
 
-    # Allow Wine-Wayland to work in Steam Linux Runtime
+    # winewayland moment
     XKBCOMMON_CFLAGS="$(pkg-config --static --cflags xkbcommon)"
-    XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -E 's/-l([^ ]+)/-l:lib\1.a/g')"
+    XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
     export XKBCOMMON_CFLAGS XKBCOMMON_LIBS
-    # Fixes Wine-Wayland not working due to libxml2 issues on some systems
+
+    XKBREGISTRY_CFLAGS="$(pkg-config --static --cflags xkbregistry)"
+    XKBREGISTRY_LIBS="$(pkg-config --static --libs xkbregistry | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
+    export XKBREGISTRY_CFLAGS XKBREGISTRY_LIBS
+
     LIBXML2_CFLAGS="$(pkg-config --static --cflags libxml-2.0)"
-    LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -E 's/-l([^ ]+)/-l:lib\1.a/g')"
+    LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
     export LIBXML2_CFLAGS LIBXML2_LIBS
+
     # Allow GStreamer AAC to work in Steam Linux Runtime
     if [ "$WINE_OSU" = "true" ]; then
         GSTREAMER_CFLAGS="$(pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0)"
@@ -221,11 +226,18 @@ build_wine() {
         export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
         export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
         export CROSSCC="${CROSSCC_X32}"
+        
+        # winewayland moment
         XKBCOMMON_CFLAGS="$(pkg-config --static --cflags xkbcommon)"
-        XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -E 's/-l([^ ]+)/-l:lib\1.a/g')"
+        XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
         export XKBCOMMON_CFLAGS XKBCOMMON_LIBS
+
+        XKBREGISTRY_CFLAGS="$(pkg-config --static --cflags xkbregistry)"
+        XKBREGISTRY_LIBS="$(pkg-config --static --libs xkbregistry | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
+        export XKBREGISTRY_CFLAGS XKBREGISTRY_LIBS
+
         LIBXML2_CFLAGS="$(pkg-config --static --cflags libxml-2.0)"
-        LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -E 's/-l([^ ]+)/-l:lib\1.a/g')"
+        LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
         export LIBXML2_CFLAGS LIBXML2_LIBS
 
         # export I386_LIBS="-latomic" required for older fsync
@@ -318,7 +330,8 @@ package_wine() {
 
     if [ "${NO_COMPRESS}" = "true" ]; then
         Info "Skipping compression, moving build directory to output..."
-        mv "${BUILD_NAME}" "${WINE_ROOT}/${BUILD_NAME}"
+        rm -rf "${WINE_ROOT}/${BUILD_NAME}"
+        mv -f "${BUILD_NAME}" "${WINE_ROOT}/${BUILD_NAME}"
     else
         Info "Creating and compressing ${ARCHIVE_NAME}..."
         XZ_OPT="-9 -T$(nproc)" tar -cJf \
@@ -463,7 +476,7 @@ compiler_setup() {
     # Compiler and linker flags
     export CFLAGS="${_GCC_FLAGS}"
     export CXXFLAGS="${_GCC_FLAGS}"
-    export LDFLAGS="${_LD_FLAGS}"
+    export LDFLAGS="${_LD_FLAGS} -L/usr/local/x86_64/lib/x86_64-linux-gnu -L/usr/local/lib"
 
     export CROSSCFLAGS="${_CROSS_FLAGS}"
     export CROSSCXXFLAGS="${_CROSS_FLAGS}"
