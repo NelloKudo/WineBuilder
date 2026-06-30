@@ -61,7 +61,7 @@ _configuration() {
     # Wine links
     WINE_URL="https://github.com/wine-mirror/wine.git"
     STAGING_URL="https://github.com/wine-staging/wine-staging.git"
-    
+
     # Fallback links
     WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
     STAGING_FALLBACK_URL="https://gitlab.winehq.org/wine/wine-staging.git"
@@ -83,7 +83,7 @@ _configuration() {
     if [ "$WINE_OSU" == "true" ]; then
         BUILD_NAME="wine-osu"
         RELEASE_VERSION="1"
-        PATCHSET="remote:winello-v11.8-$RELEASE_VERSION"
+        PATCHSET="remote:winello-v11.12-$RELEASE_VERSION"
         USE_TKG="false"
     fi
 
@@ -213,7 +213,7 @@ build_wine() {
         GSTREAMER_LIBS="$(pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0) -Wl,-rpath='\$\$ORIGIN'"
         export GSTREAMER_CFLAGS GSTREAMER_LIBS
     fi
-    
+
 
     # Configure and build 64-bit
     "${BUILD_DIR}/wine/configure" "${WINE_BUILD_OPTIONS[@]}" "${WINE_64_BUILD_OPTIONS[@]}"
@@ -226,7 +226,7 @@ build_wine() {
         export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
         export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
         export CROSSCC="${CROSSCC_X32}"
-        
+
         # winewayland moment
         XKBCOMMON_CFLAGS="$(pkg-config --static --cflags xkbcommon)"
         XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
@@ -456,7 +456,7 @@ compiler_setup() {
                             -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
                             -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
         fi
-    
+
         _native_common_cflags="-static-libgcc"
 
         export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
