@@ -27,8 +27,9 @@ docker tag nellokudo/wine-builder:$STEAMRT_TAG wine-builder:latest
 # docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit; }
 
 ## Allow overriding variables in wine_builder.sh
-vars=(WINE_OSU USE_STAGING USE_TKG BUILD_NAME \
-      WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER NO_COMPRESS)
+vars=(WINE_OSU USE_STAGING USE_TKG USE_CACHY USE_EM USE_VALVE USE_GDK BUILD_NAME \
+      WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER NO_COMPRESS \
+      USE_WOW64 BUILD_FONTS DEBUG USE_LLVM_MINGW CRAP_AUDIO)
 
 WB_ENV_ARGS=()
 for var in "${vars[@]}"; do
@@ -49,7 +50,7 @@ docker run --rm \
     --mount type=bind,source="$(pwd)"/ccache,target=/root/.ccache \
     --mount type=bind,source="$(pwd)"/sources,target=/wine/sources \
     --entrypoint "/usr/local/bin/wine_builder.sh" \
-    wine-builder "$@" || { echo "wine build failed" && exit; }
+    wine-builder || { echo "wine build failed" && exit; }
 
 Info "FIXME: fixing up ownership of build files..."
 sudo chown -R "$(id -u)":"$(id -g)" output/

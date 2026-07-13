@@ -49,11 +49,10 @@ _configuration() {
 
     # Build configuration
     # You can change the default value by changing the value after :-
-    USE_WOW64="${1:-true}"
-    BUILD_FONTS="${2:-true}"
-    DEBUG="${3:-false}"
-    USE_LLVM_MINGW="${4:-false}"
-    CRAP_AUDIO="${5:-false}"
+    USE_WOW64="${USE_WOW64:-true}"
+    BUILD_FONTS="${BUILD_FONTS:-true}"
+    DEBUG="${DEBUG:-false}"
+    CRAP_AUDIO="${CRAP_AUDIO:-false}"
 
     # Debugging env. vars
     NO_COMPRESS="${NO_COMPRESS:-false}"
@@ -79,13 +78,8 @@ _configuration() {
     TAG_FILTER="${TAG_FILTER:-winello*}"
     STAGING_ARGS="--all"
 
-    # osu!-specific settings
-    if [ "$WINE_OSU" == "true" ]; then
-        BUILD_NAME="wine-osu"
-        RELEASE_VERSION="1"
-        PATCHSET="remote:winello-v11.12-$RELEASE_VERSION"
-        USE_TKG="false"
-    fi
+    # osu!-specific settings, see the section below
+    _osu_settings
 
     # wine forks settings
     for variant in tkg cachy em valve gdk; do
@@ -97,6 +91,52 @@ _configuration() {
             WINE_URL="${!url_var}"
         fi
     done
+}
+
+## ------------------------------------------------------------
+##          osu!-specific settings (WINE_OSU=true)
+## ------------------------------------------------------------
+
+## everything osu!-specific lives here: build settings and the
+## gstreamer tweaks for the steam linux runtime
+
+# build name, patchset and toolchain defaults for osu! builds
+_osu_settings() {
+    if [ "$WINE_OSU" != "true" ]; then
+        USE_LLVM_MINGW="${USE_LLVM_MINGW:-false}"
+        return 0
+    fi
+
+    BUILD_NAME="wine-osu"
+    RELEASE_VERSION="1"
+    PATCHSET="remote:winello-v11.12-$RELEASE_VERSION"
+    USE_TKG="false"
+
+    # llvm-mingw is only enabled by default for osu! builds
+    USE_LLVM_MINGW="${USE_LLVM_MINGW:-true}"
+}
+
+# allow gstreamer aac to work in steam linux runtime
+_osu_gstreamer_env() {
+    if [ "$WINE_OSU" != "true" ]; then
+        return 0
+    fi
+
+    GSTREAMER_CFLAGS="$(pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0)"
+    GSTREAMER_LIBS="$(pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0) -Wl,-rpath='\$\$ORIGIN'"
+    export GSTREAMER_CFLAGS GSTREAMER_LIBS
+}
+
+# bundle gstreamer to fix .m4a/.aac support in steam linux runtime
+_osu_bundle_gstreamer() {
+    if [ "$WINE_OSU" != "true" ]; then
+        return 0
+    fi
+
+    Info "Bundling GStreamer libs for AAC support..."
+    cp -P /usr/local/x86_64/lib/x86_64-linux-gnu/libgst*.so* "${BUILD_NAME}/lib/wine/x86_64-unix/"
+    cp /usr/local/x86_64/lib/x86_64-linux-gnu/gstreamer-1.0/libgst*.so "${BUILD_DIR}/${BUILD_NAME}/lib/wine/x86_64-unix/"
+    cp /usr/lib/x86_64-linux-gnu/libfaad.so* "${BUILD_NAME}/lib/wine/x86_64-unix/" 2>/dev/null || true
 }
 
 ## ------------------------------------------------------------
@@ -207,12 +247,7 @@ build_wine() {
     LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
     export LIBXML2_CFLAGS LIBXML2_LIBS
 
-    # Allow GStreamer AAC to work in Steam Linux Runtime
-    if [ "$WINE_OSU" = "true" ]; then
-        GSTREAMER_CFLAGS="$(pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0)"
-        GSTREAMER_LIBS="$(pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0) -Wl,-rpath='\$\$ORIGIN'"
-        export GSTREAMER_CFLAGS GSTREAMER_LIBS
-    fi
+    _osu_gstreamer_env
 
 
     # Configure and build 64-bit
@@ -304,13 +339,7 @@ package_wine() {
 
     mv "${BUILD_OUT_TMP_DIR}" "${BUILD_NAME}"
 
-    # Bundle GStreamer to fix .m4a/.aac support in Steam Linux Runtime
-    if [ "$WINE_OSU" = "true" ]; then
-        Info "Bundling GStreamer libs for AAC support..."
-        cp -P /usr/local/x86_64/lib/x86_64-linux-gnu/libgst*.so* "${BUILD_NAME}/lib/wine/x86_64-unix/"
-        cp /usr/local/x86_64/lib/x86_64-linux-gnu/gstreamer-1.0/libgst*.so "${BUILD_DIR}/${BUILD_NAME}/lib/wine/x86_64-unix/"
-        cp /usr/lib/x86_64-linux-gnu/libfaad.so* "${BUILD_NAME}/lib/wine/x86_64-unix/" 2>/dev/null || true
-    fi
+    _osu_bundle_gstreamer
 
     if [ "${BUILD_FONTS}" = "true" ]; then
         # Launch fonts build script
@@ -699,22 +728,22 @@ main() {
     Info "Build completed successfully!"
 }
 
-## Script options:
-# Option 1: wow64 (empty/default = true)
-# Option 2: fonts (empty/default = true)
-# Option 3: debug (empty/default = false)
-# Option 4: llvm-mingw (empty/default = false)
-# Option 5: no audio patches (empty/default = false)
+## Script options (override via environment variables):
+# USE_WOW64 (default = true)
+# BUILD_FONTS (default = true)
+# DEBUG (default = false)
+# USE_LLVM_MINGW (default = true for osu! builds, false otherwise)
+# CRAP_AUDIO (default = false)
 
 ORIGPATH="${PWD:-$(pwd)}"
-_configuration "$@"
+_configuration
 
 if [ "$WINE_OSU" = "true" ]; then
     # Main osu! build
     Info "Building wine-osu:"
-    main "$@" true true false true false
 else
     # Leave default settings for usual builds
     Info "Building your custom Wine:"
-    main "$@"
 fi
+
+main
