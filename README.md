@@ -1,35 +1,36 @@
 # WineBuilder
 
-**WineBuilder** is a script that makes it easier to build **Wine binaries**, including versions with custom patches, using Docker.
+**WineBuilder** is a script that makes it easy to build **Wine binaries**, including versions with custom patches, using Docker.
 
-You can find prebuilt binaries on the [Releases page](https://github.com/NelloKudo/WineBuilder/releases).
+Prebuilt binaries are available on the [Releases page](https://github.com/NelloKudo/WineBuilder/releases).
 
----
+## How it works
 
-## Builds description
+WineBuilder uses the Proton SDK (with a few changes) to build Wine inside a Docker container. This ensures great compatibility and feature completeness, and the resulting builds also work within the **Steam Linux Runtime**.
 
-WineBuilder uses the latest Proton SDK (with a few changes) to build Wine inside a Docker container. This ensures great compatibility and feature completeness — including seamless usage within the **Steam Linux Runtime**. 
+The `wine-builder` container is hosted on [Docker Hub](https://hub.docker.com/r/nellokudo/wine-builder) and built from the [winebuilder-image repository](https://github.com/NelloKudo/winebuilder-image).
 
-The `wine-builder` container is hosted [here](https://hub.docker.com/r/nellokudo/wine-builder), built from its apposite [winebuilder-image repository](https://github.com/NelloKudo/winebuilder-image).
+### Build types
 
-By default, the script creates **osu!-specific builds**, with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), also used in [osu-winello](https://github.com/NelloKudo/osu-winello). 
+By default, the script creates **osu!-specific builds** with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), also used in [osu-winello](https://github.com/NelloKudo/osu-winello).
 
-To build a regular Wine-Staging version instead, run `WINE_OSU="false" ./build.sh` or simply set **`WINE_OSU="false"`** in `wine_builder.sh`—the same file where all customizations can be made.
+Other build options:
 
-[wine-tkg](https://github.com/Kron4ek/wine-tkg) by Kron4ek is also supported: `WINE_OSU=false USE_TKG=true ./build.sh` will do the job.
+- **Wine-Staging:** run `WINE_OSU=false ./build.sh`.
+- **[wine-tkg](https://github.com/Kron4ek/wine-tkg)** by Kron4ek: run `WINE_OSU=false USE_TKG=true ./build.sh`.
+- **[Wine-CachyOS](https://github.com/CachyOS/wine-cachyos):** run `WINE_OSU=false USE_CACHY=true ./build.sh`.
+- **[Wine-EM](https://github.com/Etaash-mathamsetty/wine-valve)**: run `WINE_OSU=false USE_EM=true ./build.sh`.
 
-> **Custom patches:** To use your own patches in your custom builds, just place them in the `custompatches/` folder.
+More settings (build name, Wine branch, patchsets, WoW64 and more) can be tweaked in the configuration section at the top of `wine_builder.sh`.
 
----
+**Custom patches:** to use your own patches in your builds, just place them in the `custompatches/` folder.
 
 ## Workflows
 
-WineBuilder currently provides two weekly automated builds, available via [GitHub Actions](https://github.com/NelloKudo/WineBuilder/actions):
+WineBuilder currently provides two automated builds via [GitHub Actions](https://github.com/NelloKudo/WineBuilder/actions):
 
-- [wine-osu-winello](https://github.com/NelloKudo/WineBuilder/actions/workflows/wine-osu-winello.yml), an osu!-specific Wine build with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches).
-
-- [wine-staging-git](https://github.com/NelloKudo/WineBuilder/actions/workflows/wine-staging-git.yml), with daily Wine-Staging builds based on master (might fail sometimes due to staging rebases needed!)
----
+- [wine-osu-winello](https://github.com/NelloKudo/WineBuilder/actions/workflows/wine-osu-winello.yml): osu!-specific Wine builds with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), built on new releases.
+- [wine-staging-git](https://github.com/NelloKudo/WineBuilder/actions/workflows/wine-staging-git.yml): Wine-Staging builds based on master, built every 3 days (might fail sometimes when staging rebases are needed!)
 
 ## Requirements
 
@@ -39,16 +40,19 @@ Install the following packages using your system's package manager:
 - `docker-buildx`
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt install -y docker docker-buildx
 ```
 
 **Arch Linux:**
+
 ```bash
 sudo pacman -Sy --needed --noconfirm docker docker-buildx
 ```
 
 **Fedora:**
+
 ```bash
 sudo dnf install -y docker docker-buildx
 ```
@@ -60,11 +64,9 @@ sudo gpasswd -a $USER docker
 sudo systemctl enable docker docker.socket
 ```
 
----
-
 ## Building Wine
 
-First, clone the repo and go into the folder:
+Clone the repo and go into the folder:
 
 ```bash
 git clone https://github.com/NelloKudo/WineBuilder.git
@@ -78,10 +80,3 @@ Then run the build script:
 ```
 
 The built Wine binaries will be saved in the same folder when it's done. 🎉
-
----
-
-## Spritz-Wine
-
-If you came here for Spritz-Wine builds included in AAGL and such, you can find those at
-my fork of [Wine-Builds](https://github.com/NelloKudo/Wine-Builds).
