@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 ## Script to launch the build process in the Docker container.
 
 Info() {
@@ -24,7 +26,7 @@ docker pull nellokudo/wine-builder:$STEAMRT_TAG || { echo "docker pull failed" &
 docker tag nellokudo/wine-builder:$STEAMRT_TAG wine-builder:latest
 
 # Or build the image locally from the Dockerfile
-# docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit; }
+# docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit 1; }
 
 ## Allow overriding variables in wine_builder.sh
 vars=(WINE_OSU USE_STAGING USE_TKG USE_CACHY USE_EM USE_VALVE USE_GDK BUILD_NAME \
@@ -50,7 +52,7 @@ docker run --rm \
     --mount type=bind,source="$(pwd)"/ccache,target=/root/.ccache \
     --mount type=bind,source="$(pwd)"/sources,target=/wine/sources \
     --entrypoint "/usr/local/bin/wine_builder.sh" \
-    wine-builder || { echo "wine build failed" && exit; }
+    wine-builder || { echo "wine build failed" && exit 1; }
 
 Info "FIXME: fixing up ownership of build files..."
 sudo chown -R "$(id -u)":"$(id -g)" output/
