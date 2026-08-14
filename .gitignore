@@ -1,3 +1,9 @@
 sources/
 ccache/
 output/
+
+# Build leftovers
+protonfonts/obj-fonts/
+wine-wb-*/
+wine-osu-*/
+*.tar.xz
