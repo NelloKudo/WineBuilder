@@ -23,7 +23,7 @@ Other build options:
 
 More settings (build name, Wine branch, patchsets, WoW64 and more) can be tweaked in the configuration section at the top of `wine_builder.sh`.
 
-**Custom patches:** to use your own patches in your builds, just place them in the `custompatches/` folder.
+**Custom patches:** to use your own patches in your builds, just place them in the `custompatches/` folder. When a patchset is used (like for the default osu! builds), those patches are applied *on top* of it, in alphabetical order.
 
 ## Workflows
 

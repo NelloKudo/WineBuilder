@@ -157,14 +157,16 @@ _staging_patcher() {
     cd "${BUILD_DIR}/wine" || Error "Failed to change to wine source directory"
 
     # Apply staging overrides if they exist
-    if find "${patches_dir}/staging-overrides" -name "*spatch" -print0 -quit | grep . >/dev/null; then
-        for override in "${patches_dir}"/staging-overrides/*; do
-            base=$(basename "${override}")
-            dest=$(find "${BUILD_DIR}/wine-staging-${WINE_VERSION}/patches/" -name "${base%.spatch}*")
-            cp "${override}" "${dest}"
-        done
-        Info "Applied staging patch overrides"
-    fi
+    for dir in "${patches_dirs[@]}"; do
+        if find "${dir}/staging-overrides" -name "*spatch" -print0 -quit 2>/dev/null | grep . >/dev/null; then
+            for override in "${dir}"/staging-overrides/*; do
+                base=$(basename "${override}")
+                dest=$(find "${BUILD_DIR}/wine-staging-${WINE_VERSION}/patches/" -name "${base%.spatch}*")
+                cp "${override}" "${dest}"
+            done
+            Info "Applied staging patch overrides from ${dir}"
+        fi
+    done
 
     if [ -n "${STAGING_ARGS}" ]; then
         "${staging_patcher[@]}" --no-autoconf ${STAGING_ARGS}
@@ -192,9 +194,12 @@ _custompatcher() {
 
     pattern+=(")" ")")
 
-    mapfile -t patchlist_tmp < <(find "${patches_dir}" -type f "${pattern[@]}" | LC_ALL=C sort -f)
-
-    patchlist+=("${patchlist_tmp[@]}")
+    # each directory keeps its own ordering, custompatches/ comes last
+    for dir in "${patches_dirs[@]}"; do
+        [ -d "${dir}" ] || continue
+        mapfile -t patchlist_tmp < <(find "${dir}" -type f "${pattern[@]}" | LC_ALL=C sort -f)
+        [ "${#patchlist_tmp[@]}" -eq 0 ] || patchlist+=("${patchlist_tmp[@]}")
+    done
 
     for patch in "${patchlist[@]}"; do
         [ -f "${patch}" ] || continue
@@ -555,9 +560,22 @@ patch_setup() {
         patches_dir="${WINE_ROOT}/custompatches"
     fi
 
-    [ -r "${patches_dir}/staging-exclude" ] && STAGING_ARGS+=" $(cat "${patches_dir}/staging-exclude")"
-    { [ -r "${patches_dir}/wine-commit" ] && [ -z "${WINE_VERSION}" ] ; } && WINE_VERSION="$(cat "${patches_dir}/wine-commit")"
-    { [ -r "${patches_dir}/staging-commit" ] && [ -z "${STAGING_VERSION}" ] ; } && STAGING_VERSION="$(cat "${patches_dir}/staging-commit")"
+    patches_dirs=("${patches_dir}")
+
+    # loose patches in custompatches/ are applied on top of the patchset
+    if [ -n "${PATCHSET}" ] && [ -d "${WINE_ROOT}/custompatches" ]; then
+        if find "${WINE_ROOT}/custompatches" -type f -regex ".*\.patch" -print -quit | grep . >/dev/null; then
+            Info "Custom patches found, applying them on top of the patchset"
+            patches_dirs+=("${WINE_ROOT}/custompatches")
+        fi
+    fi
+
+    # settings from the patchset take priority over the ones in custompatches/
+    for _dir in "${patches_dirs[@]}"; do
+        [ -r "${_dir}/staging-exclude" ] && STAGING_ARGS+=" $(cat "${_dir}/staging-exclude")"
+        { [ -r "${_dir}/wine-commit" ] && [ -z "${WINE_VERSION}" ] ; } && WINE_VERSION="$(cat "${_dir}/wine-commit")"
+        { [ -r "${_dir}/staging-commit" ] && [ -z "${STAGING_VERSION}" ] ; } && STAGING_VERSION="$(cat "${_dir}/staging-commit")"
+    done
     return 0
 }
 
