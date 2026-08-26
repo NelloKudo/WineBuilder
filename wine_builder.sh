@@ -199,13 +199,27 @@ _custompatcher() {
     for patch in "${patchlist[@]}"; do
         [ -f "${patch}" ] || continue
         Info "Applying patch: $(basename "${patch}")"
-        #git apply --ignore-whitespace --verbose "${patch}" &>>"${WINE_ROOT}/patches.log" || \
-        patch -Np1 -i "${patch}" &>>"${WINE_ROOT}/patches.log" || \
-            Error "Failed to apply patch: ${patch}"
+        if patch --dry-run -Np1 -i "${patch}" &>>"${WINE_ROOT}/patches.log"; then
+            patch -Np1 -i "${patch}" &>>"${WINE_ROOT}/patches.log" || \
+                Error "Failed to apply patch: ${patch}"
+        else
+            Info "patch could not apply $(basename "${patch}"), trying git apply"
+            git apply --binary --index --whitespace=warn "${patch}" &>>"${WINE_ROOT}/patches.log" || \
+                git apply --binary --whitespace=warn "${patch}" &>>"${WINE_ROOT}/patches.log" || \
+                Error "Failed to apply patch: ${patch}"
+        fi
     done
 
     ## Clean up .orig files if patches succeeded
     find "${BUILD_DIR}/wine"/ -iregex ".*orig" -execdir rm '{''}' '+' || true
+
+    ## Restore Wine's original logo, if assets have been provided
+    if compgen -G "${WINE_ROOT}/assets/*" > /dev/null; then
+        Info "Restoring Wine resources from assets..."
+        rm -f "${BUILD_DIR}/wine/dlls/user32/resources/oic_winlogo.ico"
+        rm -f "${BUILD_DIR}/wine/dlls/user32/resources/oic_winlogo.svg"
+        cp -rf "${WINE_ROOT}"/assets/* "${BUILD_DIR}/wine/dlls/user32/resources"
+    fi
 }
 
 build_wine() {
