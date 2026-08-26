@@ -18,35 +18,44 @@ jobs:
 
     name: Build Wine (${{ matrix.build_type }})
     steps:
-      - uses: actions/checkout@v4
+      - name: Debloat GitHub CI
+        uses: endersonmenezes/free-disk-space@v3
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+
+      - uses: actions/checkout@v7
 
       - name: Restore ccache
         id: ccache-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ./ccache
           key: ccache-${{ matrix.build_type }}-${{ github.run_id }}
           restore-keys: |
             ccache-${{ matrix.build_type }}-
 
-      - uses: docker/setup-buildx-action@v3.10.0
+      - uses: docker/setup-buildx-action@v4
         with:
           driver: docker
 
       - name: Run build.sh
+        env:
+          DEBUG: ${{ matrix.debug }}
         run: |
           chmod +x build.sh
-          ./build.sh "true" "true" "${{ matrix.debug }}" "true" "false"
+          ./build.sh
 
       - name: Save ccache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ./ccache
           key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wine-osu-${{ matrix.build_type }}
           path: ./*.tar.xz
@@ -57,19 +66,19 @@ jobs:
     if: github.ref_type == 'tag'
     steps:
       - name: Download debug artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: wine-osu-debug
           path: ./artifacts/
-      
+
       - name: Download release artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: wine-osu-release
           path: ./artifacts/
-      
+
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2.2.1
+        uses: softprops/action-gh-release@v3
         with:
           files: ./artifacts/*.tar.xz
-          release_name: "${{ github.ref_name }}"
+          name: "${{ github.ref_name }}"

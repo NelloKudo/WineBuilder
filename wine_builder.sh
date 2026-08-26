@@ -29,8 +29,14 @@ _configuration() {
     # Toggle to enable/disable Wine-CachyOS.
     USE_CACHY="${USE_CACHY:-true}"
 
+    # Toggle to enable/disable Wine-EM.
+    USE_EM="${USE_EM:-false}"
+
     # Toggle to enable/disable Wine-Valve.
     USE_VALVE="${USE_VALVE:-false}"
+
+    # Toggle to enable/disable WineGDK.
+    USE_GDK="${USE_GDK:-false}"
 
     # Set your custom build name here:
     BUILD_NAME="${BUILD_NAME:-wine-wb}"
@@ -43,16 +49,18 @@ _configuration() {
 
     # Build configuration
     # You can change the default value by changing the value after :-
-    USE_WOW64="${1:-true}"
-    BUILD_FONTS="${2:-true}"
-    DEBUG="${3:-false}"
-    USE_LLVM_MINGW="${4:-false}"
-    CRAP_AUDIO="${5:-false}"
+    USE_WOW64="${USE_WOW64:-true}"
+    BUILD_FONTS="${BUILD_FONTS:-true}"
+    DEBUG="${DEBUG:-false}"
+    CRAP_AUDIO="${CRAP_AUDIO:-false}"
+
+    # Debugging env. vars
+    NO_COMPRESS="${NO_COMPRESS:-false}"
 
     # Wine links
     WINE_URL="https://github.com/wine-mirror/wine.git"
     STAGING_URL="https://github.com/wine-staging/wine-staging.git"
-    
+
     # Fallback links
     WINE_FALLBACK_URL="https://gitlab.winehq.org/wine/wine.git"
     STAGING_FALLBACK_URL="https://gitlab.winehq.org/wine/wine-staging.git"
@@ -60,7 +68,9 @@ _configuration() {
     # Other links
     WINE_TKG_URL="https://github.com/Kron4ek/wine-tkg"
     WINE_CACHY_URL="https://github.com/CachyOS/wine-cachyos"
+    WINE_EM_URL="https://github.com/Etaash-mathamsetty/wine-valve.git"
     WINE_VALVE_URL="https://github.com/ValveSoftware/wine"
+    WINE_GDK_URL="https://github.com/Weather-OS/WineGDK.git"
 
     # Patchset configuration: use remote:latest to use latest tag matching tag filter, remote:<tag> to use chosen tag
     PATCHSET="${PATCHSET:-}" # leave empty for loose patches in custompatches/
@@ -68,16 +78,11 @@ _configuration() {
     TAG_FILTER="${TAG_FILTER:-winello*}"
     STAGING_ARGS="--all"
 
-    # osu!-specific settings
-    if [ "$WINE_OSU" == "true" ]; then
-        BUILD_NAME="wine-osu-cachy"
-        RELEASE_VERSION="4"
-        PATCHSET="remote:winello-cachyos-v10.0-$RELEASE_VERSION"
-        USE_TKG="false"
-    fi
+    # osu!-specific settings, see the section below
+    _osu_settings
 
-    # tkg/cachy/valve settings
-    for variant in tkg cachy valve; do
+    # wine forks settings
+    for variant in tkg cachy em valve gdk; do
         use_flag="USE_${variant^^}"
         url_var="WINE_${variant^^}_URL"
 
@@ -89,22 +94,57 @@ _configuration() {
 }
 
 ## ------------------------------------------------------------
+##          osu!-specific settings (WINE_OSU=true)
+## ------------------------------------------------------------
+
+## everything osu!-specific lives here: build settings and the
+## gstreamer tweaks for the steam linux runtime
+
+# build name, patchset and toolchain defaults for osu! builds
+_osu_settings() {
+    if [ "$WINE_OSU" != "true" ]; then
+        USE_LLVM_MINGW="${USE_LLVM_MINGW:-false}"
+        return 0
+    fi
+
+    BUILD_NAME="wine-osu-cachy"
+    RELEASE_VERSION="4"
+    PATCHSET="remote:winello-cachyos-v10.0-$RELEASE_VERSION"
+    USE_TKG="false"
+
+    # llvm-mingw is only enabled by default for osu! builds
+    USE_LLVM_MINGW="${USE_LLVM_MINGW:-true}"
+}
+
+# allow gstreamer aac to work in steam linux runtime
+_osu_gstreamer_env() {
+    if [ "$WINE_OSU" != "true" ]; then
+        return 0
+    fi
+
+    GSTREAMER_CFLAGS="$(pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0)"
+    GSTREAMER_LIBS="$(pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0) -Wl,-rpath='\$\$ORIGIN'"
+    export GSTREAMER_CFLAGS GSTREAMER_LIBS
+}
+
+# bundle gstreamer to fix .m4a/.aac support in steam linux runtime
+_osu_bundle_gstreamer() {
+    if [ "$WINE_OSU" != "true" ]; then
+        return 0
+    fi
+
+    Info "Bundling GStreamer libs for AAC support..."
+    cp -P /usr/local/x86_64/lib/x86_64-linux-gnu/libgst*.so* "${BUILD_NAME}/lib/wine/x86_64-unix/"
+    cp /usr/local/x86_64/lib/x86_64-linux-gnu/gstreamer-1.0/libgst*.so "${BUILD_DIR}/${BUILD_NAME}/lib/wine/x86_64-unix/"
+    cp /usr/lib/x86_64-linux-gnu/libfaad.so* "${BUILD_NAME}/lib/wine/x86_64-unix/" 2>/dev/null || true
+}
+
+## ------------------------------------------------------------
 ##                  Build Functions
 ## ------------------------------------------------------------
 
 _staging_patcher() {
     Info "Applying Wine-Staging patches..."
-
-    # Breaks seccomp (example: opening browser from clicking on links in wine)
-    if [ "${WINE_OSU}" = "true" ]; then
-        if [ "${USE_WOW64}" = "true" ]; then
-            Info "WoW64 build: adding staging hotfix to remove the 'ntdll-Syscall_Emulation' patchset"
-            STAGING_ARGS+=" -W ntdll-Syscall_Emulation"
-        fi
-    else
-        # Also disabling problematic Staging patchset
-        STAGING_ARGS+=" -W winedevice-Default_Drivers" || Info "Problematic patchset not found, ignoring.."
-    fi
 
     local staging_patcher
     if [ -f "wine-staging-${WINE_VERSION}/patches/patchinstall.sh" ]; then
@@ -148,11 +188,6 @@ _custompatcher() {
         if [ "${CRAP_AUDIO}" = "true" ]; then
             pattern+=(")" "-a" "(" "-not" "-regex" ".*-audio\/.*\.patch")
         fi
-    fi
-
-    # Spritz-Wine: disable ntsync patches for non-ntsync builds
-    if [ "$TAG_FILTER" == "spritz*" ] && [ "$WINE_BRANCH" != "ntsync" ]; then
-        pattern+=(")" "-a" "(" "-not" "-regex" ".*0004-ntsync-fixes/.*\.patch")
     fi
 
     pattern+=(")" ")")
@@ -199,21 +234,22 @@ build_wine() {
         export UNWIND_LIBS="-L/usr/local/lib/ -static-libgcc -l:libunwind.a -l:liblzma.a"
     fi
 
-    # Allow Wine-Wayland to work in Steam Linux Runtime
+    # winewayland moment
     XKBCOMMON_CFLAGS="$(pkg-config --static --cflags xkbcommon)"
-    XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's| -l| -l:lib|').a"
+    XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
     export XKBCOMMON_CFLAGS XKBCOMMON_LIBS
-    # Fixes Wine-Wayland not working due to libxml2 issues on some systems
+
+    XKBREGISTRY_CFLAGS="$(pkg-config --static --cflags xkbregistry)"
+    XKBREGISTRY_LIBS="$(pkg-config --static --libs xkbregistry | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
+    export XKBREGISTRY_CFLAGS XKBREGISTRY_LIBS
+
     LIBXML2_CFLAGS="$(pkg-config --static --cflags libxml-2.0)"
-    LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's| -l| -l:lib|g').a"
+    LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
     export LIBXML2_CFLAGS LIBXML2_LIBS
-    # Allow GStreamer AAC to work in Steam Linux Runtime
-    if [ "$WINE_OSU" = "true" ]; then
-        GSTREAMER_CFLAGS="$(pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0)"
-        GSTREAMER_LIBS="$(pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0) -Wl,-rpath='\$\$ORIGIN'"
-        export GSTREAMER_CFLAGS GSTREAMER_LIBS
-    fi
-    
+
+    _osu_gstreamer_env
+
+
     # Configure and build 64-bit
     "${BUILD_DIR}/wine/configure" "${WINE_BUILD_OPTIONS[@]}" "${WINE_64_BUILD_OPTIONS[@]}"
     make -j$(($(nproc) + 1))
@@ -225,19 +261,20 @@ build_wine() {
         export PKG_CONFIG_LIBDIR="/usr/local/i386/lib/i386-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
         export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
         export CROSSCC="${CROSSCC_X32}"
+
+        # winewayland moment
         XKBCOMMON_CFLAGS="$(pkg-config --static --cflags xkbcommon)"
-        XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's| -l| -l:lib|').a"
+        XKBCOMMON_LIBS="$(pkg-config --static --libs xkbcommon | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
         export XKBCOMMON_CFLAGS XKBCOMMON_LIBS
-        # Fixes Wine-Wayland not working due to libxml2 issues on some systems
+
+        XKBREGISTRY_CFLAGS="$(pkg-config --static --cflags xkbregistry)"
+        XKBREGISTRY_LIBS="$(pkg-config --static --libs xkbregistry | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
+        export XKBREGISTRY_CFLAGS XKBREGISTRY_LIBS
+
         LIBXML2_CFLAGS="$(pkg-config --static --cflags libxml-2.0)"
-        LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's| -l| -l:lib|g').a"
+        LIBXML2_LIBS="$(pkg-config --static --libs libxml-2.0 | sed -e 's|-l\([^ ]*\)|-l:lib\1.a|g' -e 's|-l:libm\.a|-lm|g' -e 's|-l:libc\.a|-lc|g' -e 's|-l:libpthread\.a|-lpthread|g')"
         export LIBXML2_CFLAGS LIBXML2_LIBS
-        # Allow GStreamer AAC to work in Steam Linux Runtime
-        if [ "$WINE_OSU" = "true" ]; then
-            GSTREAMER_CFLAGS="$(pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0)"
-            GSTREAMER_LIBS="$(pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0) -Wl,-rpath='\$\$ORIGIN'"
-            export GSTREAMER_CFLAGS GSTREAMER_LIBS
-        fi
+
         # export I386_LIBS="-latomic" required for older fsync
 
         cd "${BUILD_DIR}"
@@ -302,13 +339,7 @@ package_wine() {
 
     mv "${BUILD_OUT_TMP_DIR}" "${BUILD_NAME}"
 
-    # Bundle GStreamer to fix .m4a/.aac support in Steam Linux Runtime
-    if [ "$WINE_OSU" = "true" ]; then
-        Info "Bundling GStreamer libs for AAC support..."
-        cp -P /usr/local/x86_64/lib/x86_64-linux-gnu/libgst*.so* "${BUILD_NAME}/lib/wine/x86_64-unix/"
-        cp /usr/local/x86_64/lib/x86_64-linux-gnu/gstreamer-1.0/libgst*.so "${BUILD_DIR}/${BUILD_NAME}/lib/wine/x86_64-unix/"
-        cp /usr/lib/x86_64-linux-gnu/libfaad.so* "${BUILD_NAME}/lib/wine/x86_64-unix/" 2>/dev/null || true
-    fi
+    _osu_bundle_gstreamer
 
     if [ "${BUILD_FONTS}" = "true" ]; then
         # Launch fonts build script
@@ -326,11 +357,17 @@ package_wine() {
         BUILD_NAME="$BUILD_NAME-$WINE_VERSION"
     fi
 
-    Info "Creating and compressing ${ARCHIVE_NAME}..."
-    XZ_OPT="-9 -T$(nproc)" tar -cJf \
-        "${ARCHIVE_NAME}" \
-        --xattrs --numeric-owner --owner=0 --group=0 "${BUILD_NAME}"
-    mv "${ARCHIVE_NAME}" "${WINE_ROOT}"
+    if [ "${NO_COMPRESS}" = "true" ]; then
+        Info "Skipping compression, moving build directory to output..."
+        rm -rf "${WINE_ROOT}/${BUILD_NAME}"
+        mv -f "${BUILD_NAME}" "${WINE_ROOT}/${BUILD_NAME}"
+    else
+        Info "Creating and compressing ${ARCHIVE_NAME}..."
+        XZ_OPT="-9 -T$(nproc)" tar -cJf \
+            "${ARCHIVE_NAME}" \
+            --xattrs --numeric-owner --owner=0 --group=0 "${BUILD_NAME}"
+        mv "${ARCHIVE_NAME}" "${WINE_ROOT}"
+    fi
 }
 
 ## ------------------------------------------------------------
@@ -407,8 +444,8 @@ compiler_setup() {
         LLVM_MINGW_PATH="/usr/local/llvm-mingw"
         export PATH="${LLVM_MINGW_PATH}/bin:${PATH}"
 
-        export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
-        export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+        export LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/x86_64/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="${LLVM_MINGW_PATH}/lib:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/x86_64/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
 
         # Compiler settings
         export CC="ccache gcc"
@@ -426,8 +463,8 @@ compiler_setup() {
         GCC_MINGW_PATH="/usr/local/gcc-mingw"
         export PATH="${GCC_MINGW_PATH}/bin:${PATH}"
 
-        export LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
-        export LD_LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
+        export LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/x86_64/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14:/usr/lib/gcc-14/lib/gcc/x86_64-linux-gnu/14/32:/usr/lib/gcc-14/lib:/usr/lib/gcc-14/lib32:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/x86_64/lib/x86_64-linux-gnu:/usr/local/i386/lib/i386-linux-gnu:/usr/local/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:${LD_LIBRARY_PATH:-}"
 
         export CC="ccache gcc"
         export CXX="ccache g++"
@@ -441,7 +478,7 @@ compiler_setup() {
     # wine-osu-safe compiler flags
     if [ "$WINE_OSU" = "true" ]; then
         if [ "$DEBUG" != "true" ]; then
-            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -Os -fno-strict-aliasing -fwrapv -mfpmath=sse \
+            _common_cflags="-march=nocona -mtune=core-avx2 -pipe -O2 -fno-strict-aliasing -fwrapv -mfpmath=sse \
                             -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
             [ "$USE_LLVM_MINGW" = "true" ] && _common_cflags="${_common_cflags} -ffunction-sections -fdata-sections -Wl,--gc-sections"
         else
@@ -449,13 +486,13 @@ compiler_setup() {
                             -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fdata-sections -ffunction-sections \
                             -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
         fi
-    
+
         _native_common_cflags="-static-libgcc"
 
         export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
         _GCC_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
         _CROSS_FLAGS="${_common_cflags} ${CPPFLAGS}"
-        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed"
+        _LD_FLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -lrt -Wl,-O1,--sort-common,--as-needed"
         _CROSS_LD_FLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
     else
         # Generic builds, generic flags:
@@ -469,7 +506,7 @@ compiler_setup() {
     # Compiler and linker flags
     export CFLAGS="${_GCC_FLAGS}"
     export CXXFLAGS="${_GCC_FLAGS}"
-    export LDFLAGS="${_LD_FLAGS}"
+    export LDFLAGS="${_LD_FLAGS} -L/usr/local/x86_64/lib/x86_64-linux-gnu -L/usr/local/lib"
 
     export CROSSCFLAGS="${_CROSS_FLAGS}"
     export CROSSCXXFLAGS="${_CROSS_FLAGS}"
@@ -560,9 +597,11 @@ main() {
     # Change source name if the WINE_URL isn't the default or fallback one
     if [[ "$WINE_URL" != "https://github.com/wine-mirror/wine.git" && "$WINE_URL" != "$WINE_FALLBACK_URL" ]]; then
         case "$WINE_URL" in
-            "$WINE_TKG_URL")    SOURCE_NAME="wine-tkg" ;;
-            "$WINE_CACHY_URL")  SOURCE_NAME="wine-cachy" ;;
-            "$WINE_VALVE_URL")  SOURCE_NAME="wine-valve" ;;
+            "$WINE_TKG_URL")    SOURCE_NAME="wine-tkg"    ;;
+            "$WINE_CACHY_URL")  SOURCE_NAME="wine-cachy"  ;;
+            "$WINE_EM_URL")     SOURCE_NAME="wine-em"     ;;
+            "$WINE_VALVE_URL")  SOURCE_NAME="wine-valve"  ;;
+            "$WINE_GDK_URL")    SOURCE_NAME="wine-gdk"    ;;
             *)                  SOURCE_NAME="wine-custom" ;;
         esac
     fi
@@ -601,6 +640,15 @@ main() {
     if [ -n "${WINE_BRANCH}" ]; then
         git switch "${WINE_BRANCH}"
         BUILD_NAME="$BUILD_NAME-$WINE_BRANCH"
+    fi
+
+    # HACK: EM-based Wine builds currently have gstreamer surfaceless patches
+    # and media-converter ones that need patched GStreamer/FFmpeg to work: reverting those.
+    if [ "$WINE_URL" == "$WINE_EM_URL" ]; then
+        Info "Wine-EM detected: reverting surfaceless gst/winedmo commits.."
+        git revert --no-commit 2946c8a686fdb57f6becde3cd9c71bc347fb65cd
+        git revert --no-commit bd2002fe57c0cb630ef3d4d825a47f3b4e7dc132
+        git revert --no-commit 063a29bc8ba05a97152b2f9a97ad7ab12007e1e7
     fi
 
     # Initialize/update Wine-Staging source
@@ -647,7 +695,6 @@ main() {
     if [ "${DEBUG}" != "true" ]; then # let wine strip on install
         awk -i inplace '/STRIPPROG=/ { sub(/ %s/, " %s -s") }1' "${BUILD_DIR}/wine/tools/makedep.c"
         # shellcheck disable=SC2016
-        sed -i 's|stripcmd=$stripprog|stripcmd="$stripprog -s"|g' "${BUILD_DIR}/wine/tools/install-sh"
     fi
 
     # Initialize git for make_makefiles
@@ -671,11 +718,8 @@ main() {
         tools/make_specfiles
     }
 
-    # Only ask for non-cachy/valve builds
-    if [[ "$USE_CACHY" == "false" && "$USE_VALVE" == "false" ]]; then
-        chmod +x tools/make_makefiles
-        tools/make_makefiles
-    fi
+    # chmod +x tools/make_makefiles
+    # tools/make_makefiles
 
     autoreconf -fiv
     # Build and package
@@ -685,22 +729,22 @@ main() {
     Info "Build completed successfully!"
 }
 
-## Script options:
-# Option 1: wow64 (empty/default = true)
-# Option 2: fonts (empty/default = true)
-# Option 3: debug (empty/default = false)
-# Option 4: llvm-mingw (empty/default = false)
-# Option 5: no audio patches (empty/default = false)
+## Script options (override via environment variables):
+# USE_WOW64 (default = true)
+# BUILD_FONTS (default = true)
+# DEBUG (default = false)
+# USE_LLVM_MINGW (default = true for osu! builds, false otherwise)
+# CRAP_AUDIO (default = false)
 
 ORIGPATH="${PWD:-$(pwd)}"
-_configuration "$@"
+_configuration
 
 if [ "$WINE_OSU" = "true" ]; then
     # Main osu! build
     Info "Building wine-osu:"
-    main "$@" true true false true false
 else
     # Leave default settings for usual builds
     Info "Building your custom Wine:"
-    main "$@"
 fi
+
+main

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 ## Script to launch the build process in the Docker container.
 
 Info() {
@@ -11,16 +13,25 @@ Info "Welcome to WineBuilder!"
 ## Setting up Docker..
 mkdir -p {custompatches,ccache,output,protonfonts,sources}
 
+# Keep using steamrt3 for osu! for now,
+# allow using steamrt4 for other builds (for e.g. working syscall emulation)
+if [[ "${WINE_OSU:-}" == "false" ]]; then
+    STEAMRT_TAG="steamrt4-040526"
+else
+    STEAMRT_TAG="steamrt3-070726"
+fi
+
 Info "Pulling Docker image..."
-docker pull nellokudo/wine-builder:latest || { echo "docker pull failed" && exit 1; }
-docker tag nellokudo/wine-builder:latest wine-builder:latest
+docker pull nellokudo/wine-builder:$STEAMRT_TAG || { echo "docker pull failed" && exit 1; }
+docker tag nellokudo/wine-builder:$STEAMRT_TAG wine-builder:latest
 
 # Or build the image locally from the Dockerfile
-# docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit; }
+# docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit 1; }
 
 ## Allow overriding variables in wine_builder.sh
-vars=(WINE_OSU USE_STAGING USE_TKG BUILD_NAME \
-      WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER)
+vars=(WINE_OSU USE_STAGING USE_TKG USE_CACHY USE_EM USE_VALVE USE_GDK BUILD_NAME \
+      WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER NO_COMPRESS \
+      USE_WOW64 BUILD_FONTS DEBUG USE_LLVM_MINGW CRAP_AUDIO)
 
 WB_ENV_ARGS=()
 for var in "${vars[@]}"; do
@@ -41,10 +52,12 @@ docker run --rm \
     --mount type=bind,source="$(pwd)"/ccache,target=/root/.ccache \
     --mount type=bind,source="$(pwd)"/sources,target=/wine/sources \
     --entrypoint "/usr/local/bin/wine_builder.sh" \
-    wine-builder "$@" || { echo "wine build failed" && exit; }
+    wine-builder || { echo "wine build failed" && exit 1; }
 
 Info "FIXME: fixing up ownership of build files..."
 sudo chown -R "$(id -u)":"$(id -g)" output/
 
 ## Copying finished builds in main directory..
-mv output/*.tar.* .
+if compgen -G "output/*.tar.*" > /dev/null; then
+    mv output/*.tar.* .
+fi

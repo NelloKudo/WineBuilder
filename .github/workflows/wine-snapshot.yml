@@ -1,15 +1,10 @@
-name: wine-staging-git
+name: wine-snapshot
 
 on:
-  schedule:
-    - cron: '0 8 */3 * *'
   workflow_dispatch:
-  push:
-    tags:
-      - 'wine-staging-git*'
 
 jobs:
-  build-main:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,9 +23,9 @@ jobs:
       uses: actions/cache/restore@v6
       with:
         path: ./ccache
-        key: ccache-${{ github.run_id }}
+        key: ccache-snapshot-${{ github.run_id }}
         restore-keys: |
-          ccache-
+          ccache-snapshot-
 
     - name: Docker Setup Buildx
       uses: docker/setup-buildx-action@v4
@@ -41,7 +36,7 @@ jobs:
       id: date
       run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-    - name: Run build.sh for main
+    - name: Run build.sh
       env:
         WINE_OSU: "false"
       run: |
@@ -58,5 +53,5 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v7
       with:
-        name: wine-git-${{ steps.date.outputs.date }}
+        name: wine-snapshot-${{ steps.date.outputs.date }}
         path: ./*.tar.xz
