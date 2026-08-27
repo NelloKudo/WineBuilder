@@ -82,3 +82,4 @@ jobs:
         with:
           files: ./artifacts/*.tar.xz
           name: "${{ github.ref_name }}"
+          make_latest: ${{ !contains(github.ref_name, 'cachyos') }}
