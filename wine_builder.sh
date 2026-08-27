@@ -108,8 +108,8 @@ _osu_settings() {
     fi
 
     BUILD_NAME="wine-osu-cachy"
-    RELEASE_VERSION="4"
-    PATCHSET="remote:winello-cachyos-v10.0-$RELEASE_VERSION"
+    RELEASE_VERSION="1"
+    PATCHSET="remote:winello-cachyos-v11.0-$RELEASE_VERSION"
     USE_TKG="false"
 
     # llvm-mingw is only enabled by default for osu! builds
