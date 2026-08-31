@@ -18,7 +18,7 @@ mkdir -p {custompatches,ccache,output,protonfonts,sources}
 if [[ "${WINE_OSU:-}" == "false" ]]; then
     STEAMRT_TAG="steamrt4-040526"
 else
-    STEAMRT_TAG="steamrt3-070726"
+    STEAMRT_TAG="steamrt3-310826"
 fi
 
 Info "Pulling Docker image..."
