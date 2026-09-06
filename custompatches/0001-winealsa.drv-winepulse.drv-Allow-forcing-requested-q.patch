@@ -1,0 +1,176 @@
+From 044da61b58e194ee267410eceed4ca318fcc05e6 Mon Sep 17 00:00:00 2001
+From: NelloKudo <marshnelloosu@gmail.com>
+Date: Sun, 6 Sep 2026 05:08:15 +0200
+Subject: [PATCH] winealsa.drv, winepulse.drv: Allow forcing requested quants
+ with WINE_AUDIO_QUANTUM.
+
+e.g.
+WINE_AUDIO_QUANTUM=64
+WINE_AUDIO_QUANTUM=64/44100
+---
+ dlls/mmdevapi/unixlib.h    | 43 ++++++++++++++++++++++++++++++++++++++
+ dlls/winealsa.drv/alsa.c   | 17 ++++++++++++---
+ dlls/winepulse.drv/pulse.c | 29 ++++++++++++-------------
+ 3 files changed, 70 insertions(+), 19 deletions(-)
+
+diff --git a/dlls/mmdevapi/unixlib.h b/dlls/mmdevapi/unixlib.h
+index ddb6bd1005a..8002ef177ee 100644
+--- a/dlls/mmdevapi/unixlib.h
++++ b/dlls/mmdevapi/unixlib.h
+@@ -21,6 +21,8 @@
+ #include "mmdeviceapi.h"
+ 
+ #ifdef WINE_UNIX_LIB
++#include <stdlib.h>
++
+ /* helper to create a thread on the Unix side */
+ static inline NTSTATUS create_unix_thread( HANDLE *handle, const WCHAR *name,
+                                            void (*entry)(void *), void *param )
+@@ -37,6 +39,47 @@ static inline NTSTATUS create_unix_thread( HANDLE *handle, const WCHAR *name,
+     }
+     return status;
+ }
++
++static inline REFERENCE_TIME quantum_period( unsigned int rate )
++{
++    static unsigned int frames, env_rate;
++    static BOOL parsed;
++
++    if (!parsed)
++    {
++        const char *env = getenv( "WINE_AUDIO_QUANTUM" );
++
++        parsed = TRUE;
++
++        if (env && *env)
++        {
++            unsigned int val;
++            char *end;
++
++            val = strtoul( env, &end, 10 );
++            if (val && (*end == '\0' || *end == '/'))
++            {
++                frames = val;
++                if (*end == '/')
++                {
++                    val = strtoul( end + 1, &end, 10 );
++                    if (val && *end == '\0') env_rate = val;
++                    else frames = 0;
++                }
++            }
++
++            if (frames) MESSAGE( "Forcing an audio quantum of %u frames\n", frames );
++            else MESSAGE( "Invalid WINE_AUDIO_QUANTUM value \"%s\", expected <frames>[/<rate>]\n", env );
++        }
++    }
++
++    if (!frames) return 0;
++
++    if (env_rate) rate = env_rate;
++    if (!rate) rate = 48000;
++
++    return ((REFERENCE_TIME)frames * 10000000 + rate - 1) / rate;
++}
+ #endif
+ 
+ typedef UINT64 stream_handle;
+diff --git a/dlls/winealsa.drv/alsa.c b/dlls/winealsa.drv/alsa.c
+index b9a636e365b..120f79added 100644
+--- a/dlls/winealsa.drv/alsa.c
++++ b/dlls/winealsa.drv/alsa.c
+@@ -864,7 +864,17 @@ static NTSTATUS alsa_create_stream(void *args)
+ 
+     stream->mmdev_period_rt = params->period;
+     alsa_period_us = stream->mmdev_period_rt / 10;
+-    if((err = snd_pcm_hw_params_set_period_time_near(stream->pcm_handle,
++    if(quantum_period(rate)){
++        snd_pcm_uframes_t quantum_frames = muldiv(rate, stream->mmdev_period_rt, 10000000);
++
++        if((err = snd_pcm_hw_params_set_period_size_near(stream->pcm_handle,
++                    stream->hw_params, &quantum_frames, NULL)) < 0)
++            WARN("Unable to set period size near %lu: %d (%s)\n", quantum_frames,
++                    err, snd_strerror(err));
++        else
++            alsa_period_us = muldiv(quantum_frames, 1000000, rate);
++    }
++    else if((err = snd_pcm_hw_params_set_period_time_near(stream->pcm_handle,
+                 stream->hw_params, &alsa_period_us, NULL)) < 0)
+         WARN("Unable to set period time near %u: %d (%s)\n", alsa_period_us,
+                 err, snd_strerror(err));
+@@ -2056,11 +2066,12 @@ exit:
+ static NTSTATUS alsa_get_device_period(void *args)
+ {
+     struct get_device_period_params *params = args;
++    REFERENCE_TIME quantum = quantum_period(0);
+ 
+     if (params->def_period)
+-        *params->def_period = def_period;
++        *params->def_period = quantum ? quantum : def_period;
+     if (params->min_period)
+-        *params->min_period = min_period;
++        *params->min_period = quantum ? min(quantum, min_period) : min_period;
+ 
+     params->result = S_OK;
+ 
+diff --git a/dlls/winepulse.drv/pulse.c b/dlls/winepulse.drv/pulse.c
+index 8c9fade3f44..e39990b4496 100644
+--- a/dlls/winepulse.drv/pulse.c
++++ b/dlls/winepulse.drv/pulse.c
+@@ -778,9 +778,8 @@ static void pulse_probe_settings(int render, const char *pulse_name, WAVEFORMATE
+     pa_channel_map map;
+     pa_sample_spec ss;
+     pa_buffer_attr attr;
+-    int ret, periodval;
+     unsigned int length = 0;
+-    const char *penv;
++    int ret;
+ 
+     if (pulse_name && !pulse_name[0])
+         pulse_name = NULL;
+@@ -827,22 +826,22 @@ static void pulse_probe_settings(int render, const char *pulse_name, WAVEFORMATE
+         pa_stream_unref(stream);
+ 
+     if (length) {
++        REFERENCE_TIME quantum = quantum_period(ss.rate);
+         REFERENCE_TIME period_to_set = pa_bytes_to_usec(10 * length, &ss);
+-        static int periodval = -1;
+-        if (periodval == -1) {
+-            const char* penv = getenv("STAGING_AUDIO_PERIOD");
+-            periodval = 0;
+-            if (penv && *penv != '\0' && ((periodval = atoi(penv)) > 0)) {
+-                MESSAGE("Set custom audio period %d\n", periodval);
+-            }
+-        }
+-
+-        if (periodval > 0)
+-            period_to_set = periodval;
+ 
+         /* overwrite default with minimum (for playback devices) */
+         *min_period = find_closest_to_next_integer(period_to_set, ss.rate, 10000000);
+-        *def_period = find_closest_to_next_integer(*min_period, ss.rate, 10000000);
++
++        if (!quantum)
++            quantum = *min_period;
++        else if (quantum < *min_period) {
++            MESSAGE("Requested audio quantum of %u frames is below the %u frames allowed, using the latter\n",
++                    (unsigned int)(pa_usec_to_bytes(quantum / 10, &ss) / pa_frame_size(&ss)),
++                    (unsigned int)(length / pa_frame_size(&ss)));
++            quantum = *min_period;
++        }
++
++        *def_period = find_closest_to_next_integer(quantum, ss.rate, 10000000);
+     }
+ 
+     wfx->wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+@@ -1202,8 +1201,6 @@ static NTSTATUS pulse_create_stream(void *args)
+ {
+     struct create_stream_params *params = args;
+     struct pulse_stream *stream;
+-    const char *penv, *denv;
+-    int periodval, durationval;
+     unsigned int i;
+     HRESULT hr;
+     char *name;
+-- 
+2.55.0
+
