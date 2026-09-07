@@ -97,8 +97,8 @@ _configuration() {
 ##          osu!-specific settings (WINE_OSU=true)
 ## ------------------------------------------------------------
 
-## everything osu!-specific lives here: build settings and the
-## gstreamer tweaks for the steam linux runtime
+## bunch of osu! specific stuff and tweaks for
+## steam linux runtime missing libraries
 
 # build name, patchset and toolchain defaults for osu! builds
 _osu_settings() {
@@ -116,7 +116,6 @@ _osu_settings() {
     USE_LLVM_MINGW="${USE_LLVM_MINGW:-true}"
 }
 
-# allow gstreamer aac to work in steam linux runtime
 _osu_gstreamer_env() {
     if [ "$WINE_OSU" != "true" ]; then
         return 0
@@ -127,16 +126,21 @@ _osu_gstreamer_env() {
     export GSTREAMER_CFLAGS GSTREAMER_LIBS
 }
 
-# bundle gstreamer to fix .m4a/.aac support in steam linux runtime
-_osu_bundle_gstreamer() {
+# bundle gstreamer to fix .m4a/.aac support in steam linux runtime, plus the alsa plugin
+_osu_bundle_libs() {
     if [ "$WINE_OSU" != "true" ]; then
         return 0
     fi
 
+    local unix64="${BUILD_DIR}/${BUILD_NAME}/lib/wine/x86_64-unix"
+
     Info "Bundling GStreamer libs for AAC support..."
-    cp -P /usr/local/x86_64/lib/x86_64-linux-gnu/libgst*.so* "${BUILD_NAME}/lib/wine/x86_64-unix/"
-    cp /usr/local/x86_64/lib/x86_64-linux-gnu/gstreamer-1.0/libgst*.so "${BUILD_DIR}/${BUILD_NAME}/lib/wine/x86_64-unix/"
-    cp /usr/lib/x86_64-linux-gnu/libfaad.so* "${BUILD_NAME}/lib/wine/x86_64-unix/" 2>/dev/null || true
+    cp -P /usr/local/x86_64/lib/x86_64-linux-gnu/libgst*.so* "${unix64}/"
+    cp /usr/local/x86_64/lib/x86_64-linux-gnu/gstreamer-1.0/libgst*.so "${unix64}/"
+    cp /usr/lib/x86_64-linux-gnu/libfaad.so* "${unix64}/" 2>/dev/null || true
+
+    Info "Bundling the PipeWire ALSA plugin..."
+    cp /usr/local/x86_64/lib/x86_64-linux-gnu/alsa-lib/libasound_module_*_pipewire.so "${unix64}/"
 }
 
 ## ------------------------------------------------------------
@@ -350,7 +354,7 @@ package_wine() {
 
     mv "${BUILD_OUT_TMP_DIR}" "${BUILD_NAME}"
 
-    _osu_bundle_gstreamer
+    _osu_bundle_libs
 
     if [ "${BUILD_FONTS}" = "true" ]; then
         # Launch fonts build script
