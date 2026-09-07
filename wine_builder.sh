@@ -108,7 +108,7 @@ _osu_settings() {
     fi
 
     BUILD_NAME="wine-osu"
-    RELEASE_VERSION="3"
+    RELEASE_VERSION="4"
     PATCHSET="remote:winello-v11.12-$RELEASE_VERSION"
     USE_TKG="false"
 
