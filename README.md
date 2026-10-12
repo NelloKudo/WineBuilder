@@ -30,7 +30,7 @@ More settings (build name, Wine branch, patchsets, WoW64 and more) can be tweake
 WineBuilder currently provides two automated builds via [GitHub Actions](https://github.com/NelloKudo/WineBuilder/actions):
 
 - [wine-osu-winello](https://github.com/NelloKudo/WineBuilder/actions/workflows/wine-osu-winello.yml): osu!-specific Wine builds with patches from [wine-osu-patches](https://github.com/whrvt/wine-osu-patches), built on new releases.
-- [wine-git](https://github.com/NelloKudo/WineBuilder/actions/workflows/wine-git.yml): Vanilla Wine builds based on master, built every 3 days
+- [wine-git](https://github.com/NelloKudo/WineBuilder/actions/workflows/wine-git.yml): Vanilla Wine builds based on master, built daily
 
 ## Requirements
 
