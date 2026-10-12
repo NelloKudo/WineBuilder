@@ -22,16 +22,16 @@ else
 fi
 
 Info "Pulling Docker image..."
-docker pull nellokudo/wine-builder:$STEAMRT_TAG || { echo "docker pull failed" && exit 1; }
-docker tag nellokudo/wine-builder:$STEAMRT_TAG wine-builder:latest
+# docker pull nellokudo/wine-builder:$STEAMRT_TAG || { echo "docker pull failed" && exit 1; }
+# docker tag nellokudo/wine-builder:$STEAMRT_TAG wine-builder:latest
 
 # Or build the image locally from the Dockerfile
-# docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit 1; }
+docker buildx build --progress=plain -t wine-builder . || { echo "docker build failed" && exit 1; }
 
 ## Allow overriding variables in wine_builder.sh
 vars=(WINE_OSU USE_STAGING USE_TKG USE_CACHY USE_EM USE_VALVE USE_GDK BUILD_NAME \
       WINE_BRANCH PATCHSET PATCHSET_REPO TAG_FILTER NO_COMPRESS \
-      USE_WOW64 BUILD_FONTS DEBUG USE_LLVM_MINGW CRAP_AUDIO)
+      USE_WOW64 BUILD_FONTS DEBUG USE_LLVM_MINGW CRAP_AUDIO BUILD_ARCH)
 
 WB_ENV_ARGS=()
 for var in "${vars[@]}"; do

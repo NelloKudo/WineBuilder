@@ -135,6 +135,16 @@ _osu_bundle_libs() {
         return 0
     fi
 
+    if [ "${BUILD_ARCH}" = "aarch64" ]; then
+        local unixarm64="${BUILD_DIR}/${BUILD_NAME}/lib/wine/aarch64-unix"
+
+        Info "Bundling GStreamer libs for AAC support..."
+        cp -P /usr/local/lib/libgst*.so* "${unixarm64}/"
+        cp /usr/local/lib/gstreamer-1.0/libgst*.so "${unixarm64}/"
+        cp /usr/lib/aarch64-linux-gnu/libfaad.so* "${unixarm64}/" 2>/dev/null || true
+        return 0
+    fi
+
     local unix64="${BUILD_DIR}/${BUILD_NAME}/lib/wine/x86_64-unix"
 
     Info "Bundling GStreamer libs for AAC support..."
@@ -239,14 +249,23 @@ build_wine() {
     mkdir -p build64
     cd build64
 
-    export PKG_CONFIG_LIBDIR="/usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
-    export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
-    export x86_64_CC="${CROSSCC_X64}"
-    export i386_CC="${CROSSCC_X32}"
-    export CROSSCC="${CROSSCC_X64}"
+    if [ "${BUILD_ARCH}" = "aarch64" ]; then
+        export PKG_CONFIG_LIBDIR="/usr/local/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
+        export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
+        export aarch64_CC="${CROSSCC_X64}"
+        export CROSSCC="${CROSSCC_X64}"
 
-    WINE_64_BUILD_OPTIONS+=(--with-mingw="${x86_64_CC}")
-    WINE_32_BUILD_OPTIONS+=(--with-mingw="${i386_CC}")
+        WINE_64_BUILD_OPTIONS+=(--with-mingw="${aarch64_CC}")
+    else
+        export PKG_CONFIG_LIBDIR="/usr/local/x86_64/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
+        export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}"
+        export x86_64_CC="${CROSSCC_X64}"
+        export i386_CC="${CROSSCC_X32}"
+        export CROSSCC="${CROSSCC_X64}"
+
+        WINE_64_BUILD_OPTIONS+=(--with-mingw="${x86_64_CC}")
+        WINE_32_BUILD_OPTIONS+=(--with-mingw="${i386_CC}")
+    fi
 
     if [ -f "/usr/local/lib/libunwind.a" ] && [ -f "/usr/local/lib/liblzma.a" ]; then
         export UNWIND_CFLAGS=""
@@ -369,7 +388,7 @@ package_wine() {
         cd "${BUILD_DIR}"
     fi
 
-    local ARCHIVE_NAME="${BUILD_NAME}${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-x86_64.tar.xz"
+    local ARCHIVE_NAME="${BUILD_NAME}${EXTRA_NAME:-}-${WINE_VERSION}-${RELEASE_VERSION}-${BUILD_ARCH}.tar.xz"
 
     # Setting version to build name, too
     if [ "${BUILD_NAME}" != "wine-osu" ]; then
@@ -437,6 +456,14 @@ build_setup() {
         --libdir="${BUILD_DIR}/${BUILD_OUT_TMP_DIR}/lib"
     )
 
+    if [ "${BUILD_ARCH}" = "aarch64" ]; then
+        WINE_BUILD_OPTIONS=("${WINE_BUILD_OPTIONS[@]/--with-wayland/--without-wayland}")
+        WINE_64_BUILD_OPTIONS+=(--enable-archs="aarch64")
+        WINE_32_BUILD_OPTIONS=()
+        USE_WOW64="true"
+        return 0
+    fi
+
     # Configure WoW64 build options
     if [ "${USE_WOW64}" = "true" ]; then
         WINE_64_BUILD_OPTIONS+=(--enable-archs="x86_64,i386")
@@ -456,6 +483,34 @@ build_setup() {
 
 compiler_setup() {
     export PKG_CONFIG="pkg-config"
+
+    if [ "${BUILD_ARCH}" = "aarch64" ]; then
+        export LIBRARY_PATH="/usr/lib:/usr/lib/aarch64-linux-gnu:/usr/local/lib:${LIBRARY_PATH:-}"
+        export LD_LIBRARY_PATH="/usr/lib:/usr/lib/aarch64-linux-gnu:/usr/local/lib:${LD_LIBRARY_PATH:-}"
+
+        export CC="ccache clang"
+        export CXX="ccache clang++"
+        export CROSSCC="ccache aarch64-w64-mingw32-clang"
+        export CROSSCC_X64="ccache aarch64-w64-mingw32-clang"
+        export CROSSCXX_X64="ccache aarch64-w64-mingw32-clang++"
+
+        _common_cflags="-march=armv8.2-a -mtune=cortex-x3 -pipe -O2 -fno-strict-aliasing -fwrapv \
+                        -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w"
+        _native_common_cflags="-static-libgcc"
+
+        export CPPFLAGS="-D_GNU_SOURCE -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -DNDEBUG -D_NDEBUG"
+        export CFLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS}"
+        export CXXFLAGS="${CFLAGS}"
+        export LDFLAGS="${_common_cflags} ${_native_common_cflags} ${CPPFLAGS} -lrt -Wl,-O1,--sort-common,--as-needed -L/usr/local/lib"
+
+        export CROSSCFLAGS="${_common_cflags} ${CPPFLAGS}"
+        export CROSSCXXFLAGS="${CROSSCFLAGS}"
+        export CROSSLDFLAGS="${_common_cflags} ${CPPFLAGS} -Wl,-O1,--sort-common,--as-needed,--file-alignment=4096"
+
+        export aarch64_CC="${CROSSCC_X64}"
+        export aarch64_CFLAGS="${CROSSCFLAGS}"
+        return 0
+    fi
 
     # Compiler flags
     if [ "$USE_LLVM_MINGW" = "true" ] && [ "$DEBUG" != "true" ]; then # llvm-mingw is a bit broken for debug
@@ -600,6 +655,9 @@ patch_setup() {
 
 main() {
     cd "${ORIGPATH}"
+
+    BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
+    Info "Building for architecture: ${BUILD_ARCH}"
 
     # Base paths
     WINE_ROOT="/wine"
