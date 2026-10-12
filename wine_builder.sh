@@ -109,7 +109,7 @@ _osu_settings() {
 
     BUILD_NAME="wine-osu"
     RELEASE_VERSION="1"
-    PATCHSET="remote:706927c78bf5e62c32cf613eeb727ccb50c4aaec"
+    PATCHSET="remote:7bd12f0ceece5eb8d527c6390ec508b07b114403"
     USE_TKG="false"
 
     # llvm-mingw is only enabled by default for osu! builds
