@@ -62,6 +62,8 @@ malgun.ttf_MENUNAMEDB = $(FONTS)/patches/Malgun-FontMenuNameDB
 malgun.ttf = $(FONTS_OBJ)/source-han/malgun.ttf
 
 simsun.ttc = $(FONTS_OBJ)/source-han/simsun.ttc
+simsun_tt.ttf = $(FONTS_OBJ)/source-han/simsun-tt.ttf
+nsimsun_tt.ttf = $(FONTS_OBJ)/source-han/nsimsun-tt.ttf
 msgothic.ttc = $(FONTS_OBJ)/ume-gothic/msgothic.ttc
 
 noto_sans.ttf = $(FONTS)/noto/NotoSans-Regular.ttf
@@ -161,10 +163,11 @@ $(FONTS_OBJ)/ume-gothic/%.ttf: $$(%.ttf_FONT) $$(%.ttf_NAMETABLE_PATCH)
 	patch $(FONTS_OBJ)/ume-gothic/$(notdir $(basename $($(notdir $@)_NAMETABLE_PATCH))).ttx $($(notdir $@)_NAMETABLE_PATCH)
 	ttx -o $@ -m $($(notdir $@)_FONT) $(FONTS_OBJ)/ume-gothic/$(notdir $(basename $($(notdir $@)_NAMETABLE_PATCH))).ttx
 
-$(simsun.ttc): $(simsun.ttf) $(nsimsun.ttf)
-	afdko otf2otc -o $@.tmp $^
-	afdko otf2ttf -o $@ $@.tmp
-	rm $@.tmp
+$(simsun_tt.ttf) $(nsimsun_tt.ttf): %-tt.ttf: %.ttf
+	afdko otf2ttf -o $@ $<
+
+$(simsun.ttc): $(simsun_tt.ttf) $(nsimsun_tt.ttf)
+	afdko otf2otc -o $@ $^
 
 $(msgothic.ttc): $(msgothic.ttf) $(mspgothic.ttf) $(msuigothic.ttf)
 	afdko otf2otc -o $@ $^

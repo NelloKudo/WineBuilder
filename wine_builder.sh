@@ -50,7 +50,6 @@ _configuration() {
     # Build configuration
     # You can change the default value by changing the value after :-
     USE_WOW64="${USE_WOW64:-true}"
-    BUILD_FONTS="${BUILD_FONTS:-true}"
     DEBUG="${DEBUG:-false}"
     CRAP_AUDIO="${CRAP_AUDIO:-false}"
 
@@ -104,6 +103,7 @@ _configuration() {
 _osu_settings() {
     if [ "$WINE_OSU" != "true" ]; then
         USE_LLVM_MINGW="${USE_LLVM_MINGW:-false}"
+        BUILD_FONTS="${BUILD_FONTS:-false}"
         return 0
     fi
 
@@ -114,6 +114,9 @@ _osu_settings() {
 
     # llvm-mingw is only enabled by default for osu! builds
     USE_LLVM_MINGW="${USE_LLVM_MINGW:-true}"
+
+    # fonts are only bundled by default for osu! builds
+    BUILD_FONTS="${BUILD_FONTS:-true}"
 }
 
 _osu_gstreamer_env() {
@@ -758,7 +761,7 @@ main() {
 
 ## Script options (override via environment variables):
 # USE_WOW64 (default = true)
-# BUILD_FONTS (default = true)
+# BUILD_FONTS (default = true for osu! builds, false otherwise)
 # DEBUG (default = false)
 # USE_LLVM_MINGW (default = true for osu! builds, false otherwise)
 # CRAP_AUDIO (default = false)
