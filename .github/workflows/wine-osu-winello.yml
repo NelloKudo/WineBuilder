@@ -1,5 +1,7 @@
 name: wine-osu-winello
 on:
+  schedule:
+    - cron: '0 6 * * 1'
   workflow_dispatch:
   push:
     tags:
@@ -19,7 +21,7 @@ jobs:
     name: Build Wine (${{ matrix.build_type }})
     steps:
       - name: Debloat GitHub CI
-        uses: endersonmenezes/free-disk-space@v3
+        uses: endersonmenezes/free-disk-space@v4
         with:
           remove_android: true
           remove_dotnet: true
@@ -48,13 +50,14 @@ jobs:
           ./build.sh
 
       - name: Save ccache
-        if: always()
+        if: always() && github.ref_type != 'tag'
         uses: actions/cache/save@v6
         with:
           path: ./ccache
           key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
 
       - name: Upload Artifact
+        if: github.event_name != 'schedule'
         uses: actions/upload-artifact@v7
         with:
           name: wine-osu-${{ matrix.build_type }}

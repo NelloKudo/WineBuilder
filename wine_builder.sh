@@ -231,6 +231,7 @@ build_wine() {
 
     # Setup reproducible build and ensure ccache works
     export SOURCE_DATE_EPOCH=0
+    ccache -z || true
 
     # Prepare build environment
     cd "${BUILD_DIR}"
@@ -304,6 +305,7 @@ build_wine() {
         make -j$(($(nproc) + 1))
     fi
 
+    ccache -s || true
     unset SOURCE_DATE_EPOCH
 }
 

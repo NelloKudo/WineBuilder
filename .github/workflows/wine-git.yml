@@ -1,4 +1,4 @@
-name: wine-staging-git
+name: wine-git
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'wine-staging-git*'
+      - 'wine-git*'
 
 jobs:
   build-main:
@@ -14,7 +14,7 @@ jobs:
 
     steps:
     - name: Debloat GitHub CI
-      uses: endersonmenezes/free-disk-space@v3
+      uses: endersonmenezes/free-disk-space@v4
       with:
         remove_android: true
         remove_dotnet: true
@@ -28,9 +28,9 @@ jobs:
       uses: actions/cache/restore@v6
       with:
         path: ./ccache
-        key: ccache-${{ github.run_id }}
+        key: ccache-wine-git-${{ github.run_id }}
         restore-keys: |
-          ccache-
+          ccache-wine-git-
 
     - name: Docker Setup Buildx
       uses: docker/setup-buildx-action@v4
@@ -41,9 +41,10 @@ jobs:
       id: date
       run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-    - name: Run build.sh for main
+    - name: Run build.sh
       env:
         WINE_OSU: "false"
+        USE_STAGING: "false"
       run: |
         chmod +x build.sh
         ./build.sh
