@@ -735,7 +735,7 @@ main() {
     git config user.name "winebuild"
     git init
     git add --all
-    git commit -m "makepkg"
+    git commit --allow-empty -m "makepkg"
 
     # Generate required files
     [ -e dlls/winevulkan/make_vulkan ] && {
