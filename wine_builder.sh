@@ -109,7 +109,7 @@ _osu_settings() {
 
     BUILD_NAME="wine-osu"
     RELEASE_VERSION="1"
-    PATCHSET="remote:winello-v11.19-$RELEASE_VERSION"
+    PATCHSET="remote:winello-v11.22-$RELEASE_VERSION"
     USE_TKG="false"
 
     # llvm-mingw is only enabled by default for osu! builds
